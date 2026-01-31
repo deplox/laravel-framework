@@ -711,7 +711,7 @@ class Store implements Session
      */
     public function isValidId($id)
     {
-        return is_string($id) && ctype_alnum($id) && strlen($id) === self::SESSION_ID_LENGTH;
+        return Str::isUlid($id);
     }
 
     /**
@@ -721,7 +721,7 @@ class Store implements Session
      */
     protected function generateSessionId()
     {
-        return Str::random(self::SESSION_ID_LENGTH);
+        return strtolower((string) Str::ulid());
     }
 
     /**
