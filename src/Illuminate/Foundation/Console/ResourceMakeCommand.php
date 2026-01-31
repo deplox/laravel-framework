@@ -90,7 +90,7 @@ class ResourceMakeCommand extends GeneratorCommand
      */
     protected function getDefaultNamespace($rootNamespace)
     {
-        return $rootNamespace.'\Http\Resources';
+        return $rootNamespace.'\Resources';
     }
 
     /**
