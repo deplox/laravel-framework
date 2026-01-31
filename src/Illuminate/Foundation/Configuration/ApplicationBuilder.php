@@ -20,7 +20,6 @@ use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
-use Laravel\Folio\Folio;
 
 class ApplicationBuilder
 {
@@ -268,8 +267,8 @@ class ApplicationBuilder
 
             if (is_string($pages) &&
                 realpath($pages) !== false &&
-                class_exists(Folio::class)) {
-                Folio::route($pages, middleware: $this->pageMiddleware);
+                class_exists(\Laravel\Folio\Folio::class)) {
+                \Laravel\Folio\Folio::route($pages, middleware: $this->pageMiddleware);
             }
 
             if (is_callable($then)) {
