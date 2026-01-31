@@ -11,7 +11,7 @@ class {{ class }}
     /**
      * Determine whether the user can view any models.
      */
-    public function viewAny({{ user }} $user): bool
+    public function list({{ user }} $user): bool
     {
         return false;
     }
