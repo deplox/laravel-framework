@@ -3,6 +3,8 @@
 namespace Illuminate\Database\Migrations;
 
 use Illuminate\Database\ConnectionResolverInterface as Resolver;
+use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Str;
 
 class DatabaseMigrationRepository implements MigrationRepositoryInterface
 {
@@ -118,9 +120,12 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
      */
     public function log($file, $batch)
     {
-        $record = ['migration' => $file, 'batch' => $batch];
-
-        $this->table()->insert($record);
+        $this->table()->insert([
+            'id' => strtolower((string) Str::ulid()),
+            'batch' => $batch,
+            'migration' => $file,
+            'created_at' => Date::now(),
+        ]);
     }
 
     /**
@@ -167,9 +172,10 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
             // The migrations table is responsible for keeping track of which of the
             // migrations have actually run for the application. We'll create the
             // table to hold the migration file's path as well as the batch ID.
-            $table->increments('id');
+            $table->ulid('id')->primary();
             $table->string('migration');
             $table->integer('batch');
+            $table->dateTime('created_at');
         });
     }
 
