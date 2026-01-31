@@ -97,7 +97,7 @@ class ControllerMakeCommand extends GeneratorCommand
      */
     protected function getDefaultNamespace($rootNamespace)
     {
-        return $rootNamespace.'\Http\Controllers';
+        return $rootNamespace.'\Controllers';
     }
 
     /**
@@ -228,7 +228,7 @@ class ControllerMakeCommand extends GeneratorCommand
         ];
 
         if ($this->option('requests')) {
-            $namespace = 'App\\Http\\Requests';
+            $namespace = 'App\\Requests';
 
             [$storeRequestClass, $updateRequestClass] = $this->generateFormRequests(
                 $modelClass, $storeRequestClass, $updateRequestClass

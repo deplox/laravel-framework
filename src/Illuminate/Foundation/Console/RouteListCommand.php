@@ -430,7 +430,7 @@ class RouteListCommand extends Command
         $name = $name ? "$name   " : null;
 
         $rootControllerNamespace = $this->laravel[UrlGenerator::class]->getRootControllerNamespace()
-            ?? ($this->laravel->getNamespace().'Http\\Controllers');
+            ?? ($this->laravel->getNamespace().'Controllers');
 
         if (str_starts_with($action, $rootControllerNamespace)) {
             return $name.substr($action, mb_strlen($rootControllerNamespace) + 1);

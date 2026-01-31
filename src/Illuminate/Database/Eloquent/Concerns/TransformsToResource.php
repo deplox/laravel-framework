@@ -67,7 +67,7 @@ trait TransformsToResource
             : '';
 
         $potentialResource = sprintf(
-            '%s\\Http\\Resources\\%s%s',
+            '%s\\Resources\\%s%s',
             Str::before($modelClass, '\\Models'),
             strlen($relativeNamespace) > 0 ? $relativeNamespace.'\\' : '',
             class_basename($modelClass)
