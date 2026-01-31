@@ -9,14 +9,14 @@ trait Authenticatable
      *
      * @var string
      */
-    protected $authPasswordName = 'password';
+    const AUTH_PASSWORD = 'password';
 
     /**
-     * The column name of the "remember me" token.
+     * The name of the "remember me" token column.
      *
-     * @var string
+     * @var string|null
      */
-    protected $rememberTokenName = 'remember_token';
+    const REMEMBER_ME = 'remember_token';
 
     /**
      * Get the name of the unique identifier for the user.
@@ -55,7 +55,7 @@ trait Authenticatable
      */
     public function getAuthPasswordName()
     {
-        return $this->authPasswordName;
+        return static::AUTH_PASSWORD;
     }
 
     /**
@@ -96,10 +96,10 @@ trait Authenticatable
     /**
      * Get the column name for the "remember me" token.
      *
-     * @return string
+     * @return string|null
      */
     public function getRememberTokenName()
     {
-        return $this->rememberTokenName;
+        return static::REMEMBER_ME;
     }
 }
