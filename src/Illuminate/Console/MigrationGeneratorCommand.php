@@ -103,7 +103,7 @@ abstract class MigrationGeneratorCommand extends Command
     protected function migrationExists($table)
     {
         return count($this->files->glob(
-            join_paths($this->laravel->databasePath('migrations'), '*_*_*_*_create_'.$table.'_table.php')
+            join_paths($this->laravel->databasePath('migrations'), '*_create_'.$table.'_table.php')
         )) !== 0;
     }
 }

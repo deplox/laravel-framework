@@ -205,7 +205,7 @@ class MigrationCreator
      */
     protected function getDatePrefix()
     {
-        return date('Y_m_d_His');
+        return time();
     }
 
     /**
