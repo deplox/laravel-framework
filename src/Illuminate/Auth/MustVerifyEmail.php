@@ -3,9 +3,17 @@
 namespace Illuminate\Auth;
 
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Support\Facades\Notification;
 
 trait MustVerifyEmail
 {
+    /**
+     * The name of the "verified at" column.
+     *
+     * @var string|null
+     */
+    const VERIFIED_AT = 'verified_at';
+
     /**
      * Determine if the user has verified their email address.
      *
@@ -13,7 +21,7 @@ trait MustVerifyEmail
      */
     public function hasVerifiedEmail()
     {
-        return ! is_null($this->email_verified_at);
+        return ! is_null($this->{$this->getVerifiedAtName()});
     }
 
     /**
@@ -24,7 +32,7 @@ trait MustVerifyEmail
     public function markEmailAsVerified()
     {
         return $this->forceFill([
-            'email_verified_at' => $this->freshTimestamp(),
+            $this->getVerifiedAtName() => $this->freshTimestamp(),
         ])->save();
     }
 
@@ -36,7 +44,7 @@ trait MustVerifyEmail
     public function markEmailAsUnverified()
     {
         return $this->forceFill([
-            'email_verified_at' => null,
+            $this->getVerifiedAtName() => null,
         ])->save();
     }
 
@@ -47,7 +55,7 @@ trait MustVerifyEmail
      */
     public function sendEmailVerificationNotification()
     {
-        $this->notify(new VerifyEmail);
+        Notification::send($this, new VerifyEmail);
     }
 
     /**
@@ -58,5 +66,15 @@ trait MustVerifyEmail
     public function getEmailForVerification()
     {
         return $this->email;
+    }
+
+    /**
+     * Get the name of the "verified at" column.
+     *
+     * @return string|null
+     */
+    public function getVerifiedAtName()
+    {
+        return static::VERIFIED_AT;
     }
 }
