@@ -1,0 +1,10 @@
+name: laravel-framework
+type: php
+docroot: ""
+php_version: "8.4"
+webserver_type: nginx-fpm
+xdebug_enabled: false
+database:
+    type: mariadb
+    version: "11.8"
+webimage_extra_packages: ["php${DDEV_PHP_VERSION}-gmp"]
