@@ -1,10 +1,14 @@
 name: laravel-framework
 type: php
 docroot: ""
-php_version: "8.4"
+php_version: "8.5"
 webserver_type: nginx-fpm
+disable_settings_management: true
 xdebug_enabled: false
 database:
-    type: mariadb
-    version: "11.8"
-webimage_extra_packages: ["php${DDEV_PHP_VERSION}-gmp"]
+  type: mariadb
+  version: "11.8"
+  host_db_port: "32792"
+webimage_extra_packages: [ "php${DDEV_PHP_VERSION}-gmp" ]
+use_dns_when_possible: true
+timezone: UTC
