@@ -203,6 +203,7 @@ class AuthAccessGateTest extends TestCase
 
         $dummy = new AccessGateTestDummy;
 
+        $this->assertTrue($gate->check('test.list'));
         $this->assertTrue($gate->check('test.view'));
         $this->assertTrue($gate->check('test.create'));
         $this->assertTrue($gate->check('test.update', $dummy));
@@ -1392,6 +1393,11 @@ class AccessGateTestPolicyWithBefore
 
 class AccessGateTestResource
 {
+    public function list($user)
+    {
+        return true;
+    }
+
     public function view($user)
     {
         return true;

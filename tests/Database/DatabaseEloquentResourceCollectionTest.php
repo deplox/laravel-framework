@@ -43,7 +43,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
             new EloquentResourceCollectionTestModel(),
         ]);
 
-        class_alias(EloquentResourceCollectionTestResource::class, 'Illuminate\Tests\Database\Fixtures\Http\Resources\EloquentResourceCollectionTestModelResource');
+        class_alias(EloquentResourceCollectionTestResource::class, 'Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceCollectionTestModelResource');
 
         $resource = $collection->toResourceCollection();
 

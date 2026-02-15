@@ -372,6 +372,7 @@ class AuthGuardTest extends TestCase
         $mock->setCookieJar($cookies = m::mock(CookieJar::class));
         $user = m::mock(Authenticatable::class);
         $user->shouldReceive('getRememberToken')->once()->andReturn('a');
+        $user->shouldReceive('getRememberTokenName')->andReturn('remember_token');
         $user->shouldReceive('setRememberToken')->once();
         $mock->expects($this->once())->method('getName')->willReturn('foo');
         $mock->expects($this->exactly(2))->method('getRecallerName')->willReturn($recallerName = 'bar');
@@ -542,6 +543,7 @@ class AuthGuardTest extends TestCase
         $user->shouldReceive('getAuthIdentifier')->andReturn('foo');
         $user->shouldReceive('getAuthPassword')->andReturn('foo');
         $user->shouldReceive('getRememberToken')->andReturn(null);
+        $user->shouldReceive('getRememberTokenName')->andReturn('remember_token');
         $user->shouldReceive('setRememberToken')->once();
         $provider->shouldReceive('updateRememberToken')->once();
         $guard->login($user, true);

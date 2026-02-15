@@ -357,11 +357,11 @@ class VendorPublishCommand extends Command
         foreach (ServiceProvider::publishableMigrationPaths() as $path) {
             $path = realpath($path);
 
-            if ($from === $path && preg_match('/\d{4}_(\d{2})_(\d{2})_(\d{6})_/', $to)) {
+            if ($from === $path && preg_match('/(\d{4}_(\d{2})_(\d{2})_(\d{6})_|\d{10,}_)/', $to)) {
                 $this->publishedAt = $this->publishedAt->addSecond();
 
                 return preg_replace(
-                    '/\d{4}_(\d{2})_(\d{2})_(\d{6})_/',
+                    '/(\d{4}_(\d{2})_(\d{2})_(\d{6})_|\d{10,}_)/',
                     $this->publishedAt->format('Y_m_d_His').'_',
                     $to,
                 );

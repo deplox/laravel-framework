@@ -120,12 +120,21 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
      */
     public function log($file, $batch)
     {
-        $this->table()->insert([
+        $record = [
             'id' => strtolower((string) Str::ulid()),
             'batch' => $batch,
             'migration' => $file,
             'created_at' => Date::now(),
-        ]);
+        ];
+
+        try {
+            $this->table()->insert($record);
+        } catch (\Throwable) {
+            $this->table()->insert([
+                'batch' => $batch,
+                'migration' => $file,
+            ]);
+        }
     }
 
     /**

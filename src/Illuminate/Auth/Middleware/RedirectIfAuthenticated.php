@@ -3,11 +3,11 @@
 namespace Illuminate\Auth\Middleware;
 
 use Closure;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class RedirectIfAuthenticated
 {
@@ -42,7 +42,7 @@ class RedirectIfAuthenticated
         foreach ($guards as $guard) {
             if (Auth::guard($guard)->check()) {
                 return $request->expectsJson()
-                    ? throw new AuthorizationException('This action is unauthorized for authenticated users.')
+                    ? throw new HttpException(403, 'Already authenticated.')
                     : redirect($this->redirectTo($request));
             }
         }

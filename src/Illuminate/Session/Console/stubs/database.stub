@@ -13,19 +13,12 @@ return new class extends Migration
     {
         Schema::create('sessions', function (Blueprint $table) {
             $table->ulid('id')->primary();
-            $table->foreignUlid('user_id')->nullable()->constrained()->index();
+            $table->foreignUlid('user_id')->nullable()->index();
             $table->ipAddress('ip_address')->nullable();
             $table->text('user_agent')->nullable();
             $table->longText('payload');
-            $table->timestamp('last_activity')->index();
+            $table->integer('last_activity')->index();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
-    {
-        Schema::dropIfExists('sessions');
-    }
 };

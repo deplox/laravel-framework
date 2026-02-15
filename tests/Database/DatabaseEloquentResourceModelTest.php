@@ -32,7 +32,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
     {
         $model = new EloquentResourceTestResourceModelWithGuessableResource();
 
-        class_alias(EloquentResourceTestJsonResource::class, 'Illuminate\Tests\Database\Fixtures\Http\Resources\EloquentResourceTestResourceModelWithGuessableResourceResource');
+        class_alias(EloquentResourceTestJsonResource::class, 'Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceTestResourceModelWithGuessableResourceResource');
 
         $resource = $model->toResource();
 
@@ -44,7 +44,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
     {
         $model = new EloquentResourceTestResourceModelWithGuessableResource();
 
-        class_alias(EloquentResourceTestJsonResource::class, 'Illuminate\Tests\Database\Fixtures\Http\Resources\EloquentResourceTestResourceModelWithGuessableResource');
+        class_alias(EloquentResourceTestJsonResource::class, 'Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceTestResourceModelWithGuessableResource');
 
         $resource = $model->toResource();
 
@@ -56,8 +56,8 @@ class DatabaseEloquentResourceModelTest extends TestCase
     {
         $model = new EloquentResourceTestResourceModel();
         $this->assertEquals([
-            'Illuminate\Tests\Database\Fixtures\Http\Resources\EloquentResourceTestResourceModelResource',
-            'Illuminate\Tests\Database\Fixtures\Http\Resources\EloquentResourceTestResourceModel',
+            'Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceTestResourceModelResource',
+            'Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceTestResourceModel',
         ], $model::guessResourceName());
     }
 

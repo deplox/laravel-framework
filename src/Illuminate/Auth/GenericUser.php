@@ -66,11 +66,13 @@ class GenericUser implements UserContract
     /**
      * Get the "remember me" token value.
      *
-     * @return string
+     * @return string|null
      */
     public function getRememberToken()
     {
-        return $this->attributes[$this->getRememberTokenName()];
+        if (! empty($this->getRememberTokenName())) {
+            return $this->attributes[$this->getRememberTokenName()] ?? null;
+        }
     }
 
     /**
@@ -81,7 +83,9 @@ class GenericUser implements UserContract
      */
     public function setRememberToken($value)
     {
-        $this->attributes[$this->getRememberTokenName()] = $value;
+        if (! empty($this->getRememberTokenName())) {
+            $this->attributes[$this->getRememberTokenName()] = $value;
+        }
     }
 
     /**

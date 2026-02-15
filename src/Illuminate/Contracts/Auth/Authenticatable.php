@@ -35,7 +35,7 @@ interface Authenticatable
     /**
      * Get the token value for the "remember me" session.
      *
-     * @return string
+     * @return string|null
      */
     public function getRememberToken();
 
@@ -50,7 +50,7 @@ interface Authenticatable
     /**
      * Get the column name for the "remember me" token.
      *
-     * @return string
+     * @return string|null
      */
     public function getRememberTokenName();
 }
