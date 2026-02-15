@@ -53,7 +53,12 @@ class DatabaseMigrationRepositoryTest extends TestCase
         $connectionMock = m::mock(Connection::class);
         $repo->getConnectionResolver()->shouldReceive('connection')->with(null)->andReturn($connectionMock);
         $repo->getConnection()->shouldReceive('table')->once()->with('migrations')->andReturn($query);
-        $query->shouldReceive('insert')->once()->with(['migration' => 'bar', 'batch' => 1]);
+        $query->shouldReceive('insert')->once()->with(m::on(function ($record) {
+            return $record['migration'] === 'bar'
+                && $record['batch'] === 1
+                && isset($record['id'])
+                && isset($record['created_at']);
+        }));
         $query->shouldReceive('useWritePdo')->once()->andReturn($query);
 
         $repo->log('bar', 1);

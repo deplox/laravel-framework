@@ -232,7 +232,7 @@ class Gate implements GateContract
     public function resource($name, $class, ?array $abilities = null)
     {
         $abilities = $abilities ?: [
-            'viewAny' => 'list',
+            'list' => 'list',
             'view' => 'view',
             'create' => 'create',
             'update' => 'update',

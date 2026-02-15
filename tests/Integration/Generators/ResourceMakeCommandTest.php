@@ -5,8 +5,8 @@ namespace Illuminate\Tests\Integration\Generators;
 class ResourceMakeCommandTest extends TestCase
 {
     protected $files = [
-        'app/Http/Resources/FooResource.php',
-        'app/Http/Resources/FooResourceCollection.php',
+        'app/Resources/FooResource.php',
+        'app/Resources/FooResourceCollection.php',
     ];
 
     public function testItCanGenerateResourceFile()
@@ -15,10 +15,10 @@ class ResourceMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Http\Resources;',
+            'namespace App\Resources;',
             'use Illuminate\Http\Resources\Json\JsonResource;',
             'class FooResource extends JsonResource',
-        ], 'app/Http/Resources/FooResource.php');
+        ], 'app/Resources/FooResource.php');
     }
 
     public function testItCanGenerateResourceCollectionFile()
@@ -27,9 +27,9 @@ class ResourceMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Http\Resources;',
+            'namespace App\Resources;',
             'use Illuminate\Http\Resources\Json\ResourceCollection;',
             'class FooResourceCollection extends ResourceCollection',
-        ], 'app/Http/Resources/FooResourceCollection.php');
+        ], 'app/Resources/FooResourceCollection.php');
     }
 }

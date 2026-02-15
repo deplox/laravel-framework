@@ -4,8 +4,8 @@ namespace Illuminate\Tests\Auth;
 
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Foundation\Auth\User;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
@@ -30,7 +30,7 @@ class AuthListenersSendEmailVerificationNotificationHandleFunctionTest extends T
      */
     public function testUserIsNotInstanceOfMustVerifyEmail()
     {
-        $user = m::mock(User::class);
+        $user = m::mock(Authenticatable::class);
         $user->shouldNotReceive('sendEmailVerificationNotification');
 
         $listener = new SendEmailVerificationNotification;

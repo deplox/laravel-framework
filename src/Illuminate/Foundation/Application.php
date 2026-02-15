@@ -1661,6 +1661,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             'log' => [\Illuminate\Log\LogManager::class, \Psr\Log\LoggerInterface::class],
             'mail.manager' => [\Illuminate\Mail\MailManager::class, \Illuminate\Contracts\Mail\Factory::class],
             'mailer' => [\Illuminate\Mail\Mailer::class, \Illuminate\Contracts\Mail\Mailer::class, \Illuminate\Contracts\Mail\MailQueue::class],
+            'notification' => [\Illuminate\Notifications\ChannelManager::class, \Illuminate\Contracts\Notifications\Dispatcher::class, \Illuminate\Contracts\Notifications\Factory::class],
             'queue' => [\Illuminate\Queue\QueueManager::class, \Illuminate\Contracts\Queue\Factory::class, \Illuminate\Contracts\Queue\Monitor::class],
             'queue.connection' => [\Illuminate\Contracts\Queue\Queue::class],
             'queue.failer' => [\Illuminate\Queue\Failed\FailedJobProviderInterface::class],

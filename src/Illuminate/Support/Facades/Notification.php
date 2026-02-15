@@ -3,7 +3,6 @@
 namespace Illuminate\Support\Facades;
 
 use Illuminate\Notifications\AnonymousNotifiable;
-use Illuminate\Notifications\ChannelManager;
 use Illuminate\Support\Testing\Fakes\NotificationFake;
 
 /**
@@ -91,6 +90,6 @@ class Notification extends Facade
      */
     protected static function getFacadeAccessor()
     {
-        return ChannelManager::class;
+        return 'notification';
     }
 }

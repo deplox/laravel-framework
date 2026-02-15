@@ -86,6 +86,10 @@ class DatabaseUserProvider implements UserProvider
      */
     public function updateRememberToken(UserContract $user, #[\SensitiveParameter] $token)
     {
+        if (empty($user->getRememberTokenName())) {
+            return;
+        }
+
         $this->connection->table($this->table)
             ->where($user->getAuthIdentifierName(), $user->getAuthIdentifier())
             ->update([$user->getRememberTokenName() => $token]);

@@ -300,7 +300,7 @@ class CustomUrlGeneratorResolver implements UrlGenerator
 
     public function getRootControllerNamespace()
     {
-        return 'App\\Http\\Controllers';
+        return 'App\\Controllers';
     }
 
     public function setRootControllerNamespace($rootNamespace)

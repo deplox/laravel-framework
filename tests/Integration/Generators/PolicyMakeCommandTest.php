@@ -30,7 +30,7 @@ class PolicyMakeCommandTest extends TestCase
             'use App\Models\Post;',
             'use Illuminate\Foundation\Auth\User;',
             'class FooPolicy',
-            'public function viewAny(User $user)',
+            'public function list(User $user)',
             'public function view(User $user, Post $post)',
             'public function create(User $user)',
             'public function update(User $user, Post $post)',

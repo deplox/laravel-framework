@@ -711,7 +711,7 @@ class Store implements Session
      */
     public function isValidId($id)
     {
-        return Str::isUlid($id);
+        return Str::isUlid($id) || (is_string($id) && ctype_alnum($id) && strlen($id) === 40);
     }
 
     /**

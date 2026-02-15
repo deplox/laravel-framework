@@ -851,7 +851,7 @@ class SessionStoreTest extends TestCase
 
     public function getSessionId()
     {
-        return 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+        return '01HQZGBM3PJXKVY5GR8BWGT3NJ';
     }
 
     public function getSessionName()

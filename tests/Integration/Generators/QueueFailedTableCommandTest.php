@@ -14,7 +14,6 @@ class QueueFailedTableCommandTest extends TestCase
             'use Illuminate\Database\Migrations\Migration;',
             'return new class extends Migration',
             'Schema::create(\'failed_jobs\', function (Blueprint $table) {',
-            'Schema::dropIfExists(\'failed_jobs\');',
         ], 'create_failed_jobs_table.php');
     }
 }

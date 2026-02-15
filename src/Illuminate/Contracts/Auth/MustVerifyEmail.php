@@ -31,4 +31,18 @@ interface MustVerifyEmail
      * @return string
      */
     public function getEmailForVerification();
+
+    /**
+     * Mark the given user's email as unverified.
+     *
+     * @return bool
+     */
+    public function markEmailAsUnverified();
+
+    /**
+     * Get the name of the "verified at" column.
+     *
+     * @return string|null
+     */
+    public function getVerifiedAtName();
 }

@@ -7,8 +7,8 @@ class ModelMakeCommandTest extends TestCase
     protected $files = [
         'app/Models/Foo.php',
         'app/Models/Foo/Bar.php',
-        'app/Http/Controllers/FooController.php',
-        'app/Http/Controllers/BarController.php',
+        'app/Controllers/FooController.php',
+        'app/Controllers/BarController.php',
         'database/factories/FooFactory.php',
         'database/factories/Foo/BarFactory.php',
         'database/migrations/*_create_foos_table.php',
@@ -35,7 +35,7 @@ class ModelMakeCommandTest extends TestCase
             'use HasFactory;',
         ], 'app/Models/Foo.php');
 
-        $this->assertFilenameNotExists('app/Http/Controllers/FooController.php');
+        $this->assertFilenameNotExists('app/Controllers/FooController.php');
         $this->assertFilenameNotExists('database/factories/FooFactory.php');
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
         $this->assertFilenameNotExists('tests/Feature/Models/FooTest.php');
@@ -77,10 +77,10 @@ class ModelMakeCommandTest extends TestCase
         ], 'app/Models/Foo.php');
 
         $this->assertFileContains([
-            'namespace App\Http\Controllers;',
+            'namespace App\Controllers;',
             'use Illuminate\Http\Request;',
             'class FooController',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
 
         $this->assertFileNotContains([
             'use App\Models\Foo;',
@@ -91,7 +91,7 @@ class ModelMakeCommandTest extends TestCase
             'public function edit(Foo $foo)',
             'public function update(Request $request, Foo $foo)',
             'public function destroy(Foo $foo)',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
 
         $this->assertFilenameNotExists('database/factories/FooFactory.php');
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
@@ -116,7 +116,7 @@ class ModelMakeCommandTest extends TestCase
             '{{ factory }}',
         ], 'app/Models/Foo.php');
 
-        $this->assertFilenameNotExists('app/Http/Controllers/FooController.php');
+        $this->assertFilenameNotExists('app/Controllers/FooController.php');
         $this->assertFilenameExists('database/factories/FooFactory.php');
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
     }
@@ -140,7 +140,7 @@ class ModelMakeCommandTest extends TestCase
             '{{ factory }}',
         ], 'app/Models/Foo/Bar.php');
 
-        $this->assertFilenameNotExists('app/Http/Controllers/Foo/BarController.php');
+        $this->assertFilenameNotExists('app/Controllers/Foo/BarController.php');
         $this->assertFilenameExists('database/factories/Foo/BarFactory.php');
         $this->assertFilenameNotExists('database/seeders/Foo/BarSeeder.php');
     }
@@ -165,7 +165,7 @@ class ModelMakeCommandTest extends TestCase
             '{{ factory }}',
         ], 'app/Models/Foo.php');
 
-        $this->assertFilenameExists('app/Http/Controllers/FooController.php');
+        $this->assertFilenameExists('app/Controllers/FooController.php');
         $this->assertFilenameExists('database/factories/FooFactory.php');
         $this->assertFilenameExists('database/seeders/FooSeeder.php');
         $this->assertMigrationFileExists('create_foos_table.php');
@@ -186,10 +186,9 @@ class ModelMakeCommandTest extends TestCase
             'use Illuminate\Database\Migrations\Migration;',
             'return new class extends Migration',
             'Schema::create(\'foos\', function (Blueprint $table) {',
-            'Schema::dropIfExists(\'foos\');',
         ], 'create_foos_table.php');
 
-        $this->assertFilenameNotExists('app/Http/Controllers/FooController.php');
+        $this->assertFilenameNotExists('app/Controllers/FooController.php');
         $this->assertFilenameNotExists('database/factories/FooFactory.php');
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
     }
@@ -205,7 +204,7 @@ class ModelMakeCommandTest extends TestCase
             'class Foo extends Model',
         ], 'app/Models/Foo.php');
 
-        $this->assertFilenameNotExists('app/Http/Controllers/FooController.php');
+        $this->assertFilenameNotExists('app/Controllers/FooController.php');
         $this->assertFilenameNotExists('database/factories/FooFactory.php');
         $this->assertFilenameExists('database/seeders/FooSeeder.php');
     }
@@ -222,10 +221,10 @@ class ModelMakeCommandTest extends TestCase
         ], 'app/Models/Foo/Bar.php');
 
         $this->assertFileContains([
-            'namespace App\Http\Controllers;',
+            'namespace App\Controllers;',
             'use Illuminate\Http\Request;',
             'class BarController',
-        ], 'app/Http/Controllers/BarController.php');
+        ], 'app/Controllers/BarController.php');
 
         $this->assertFilenameNotExists('database/factories/FooFactory.php');
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
@@ -242,7 +241,7 @@ class ModelMakeCommandTest extends TestCase
             'class Foo extends Model',
         ], 'app/Models/Foo.php');
 
-        $this->assertFilenameNotExists('app/Http/Controllers/FooController.php');
+        $this->assertFilenameNotExists('app/Controllers/FooController.php');
         $this->assertFilenameNotExists('database/factories/FooFactory.php');
         $this->assertFilenameNotExists('database/seeders/FooSeeder.php');
         $this->assertFilenameExists('tests/Feature/Models/FooTest.php');

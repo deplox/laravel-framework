@@ -5,11 +5,11 @@ namespace Illuminate\Tests\Integration\Generators;
 class ControllerMakeCommandTest extends TestCase
 {
     protected $files = [
-        'app/Http/Controllers/Controller.php',
-        'app/Http/Controllers/FooController.php',
+        'app/Controllers/Controller.php',
+        'app/Controllers/FooController.php',
         'app/Models/Bar.php',
         'app/Models/Foo.php',
-        'tests/Feature/Http/Controllers/FooControllerTest.php',
+        'tests/Feature/Controllers/FooControllerTest.php',
     ];
 
     public function testItCanGenerateControllerFile()
@@ -18,17 +18,17 @@ class ControllerMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Http\Controllers;',
+            'namespace App\Controllers;',
             'use Illuminate\Http\Request;',
             'class FooController',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
 
         $this->assertFileNotContains([
             'class FooController extends Controller',
             'public function __invoke(Request $request)',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
 
-        $this->assertFilenameNotExists('tests/Feature/Http/Controllers/FooControllerTest.php');
+        $this->assertFilenameNotExists('tests/Feature/Controllers/FooControllerTest.php');
     }
 
     public function testItCanGenerateControllerFileWhenBaseControllerExists()
@@ -40,18 +40,18 @@ class ControllerMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Http\Controllers;',
+            'namespace App\Controllers;',
             'use Illuminate\Http\Request;',
             'class Controller',
-        ], 'app/Http/Controllers/Controller.php');
+        ], 'app/Controllers/Controller.php');
 
         $this->assertFileContains([
-            'namespace App\Http\Controllers;',
+            'namespace App\Controllers;',
             'use Illuminate\Http\Request;',
             'class FooController extends Controller',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
 
-        $this->assertFilenameNotExists('tests/Feature/Http/Controllers/FooControllerTest.php');
+        $this->assertFilenameNotExists('tests/Feature/Controllers/FooControllerTest.php');
     }
 
     public function testItCanGenerateControllerFileWithInvokableTypeOption()
@@ -60,11 +60,11 @@ class ControllerMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Http\Controllers;',
+            'namespace App\Controllers;',
             'use Illuminate\Http\Request;',
             'class FooController',
             'public function __invoke(Request $request)',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
     }
 
     public function testItCanGenerateControllerFileWithInvokableOption()
@@ -73,11 +73,11 @@ class ControllerMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Http\Controllers;',
+            'namespace App\Controllers;',
             'use Illuminate\Http\Request;',
             'class FooController',
             'public function __invoke(Request $request)',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
     }
 
     public function testItCanGenerateControllerFileWithModelOption()
@@ -87,7 +87,7 @@ class ControllerMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Http\Controllers;',
+            'namespace App\Controllers;',
             'use App\Models\Foo;',
             'public function index()',
             'public function create()',
@@ -96,7 +96,7 @@ class ControllerMakeCommandTest extends TestCase
             'public function edit(Foo $foo)',
             'public function update(Request $request, Foo $foo)',
             'public function destroy(Foo $foo)',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
     }
 
     public function testItCanGenerateControllerFileWithModelAndParentOption()
@@ -107,7 +107,7 @@ class ControllerMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Http\Controllers;',
+            'namespace App\Controllers;',
             'use App\Models\Bar;',
             'use App\Models\Foo;',
             'public function index(Foo $foo)',
@@ -117,7 +117,7 @@ class ControllerMakeCommandTest extends TestCase
             'public function edit(Foo $foo, Bar $bar)',
             'public function update(Request $request, Foo $foo, Bar $bar)',
             'public function destroy(Foo $foo, Bar $bar)',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
     }
 
     public function testItCanGenerateControllerFileWithApiOption()
@@ -126,19 +126,19 @@ class ControllerMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Http\Controllers;',
+            'namespace App\Controllers;',
             'use Illuminate\Http\Request;',
             'class FooController',
             'public function index()',
             'public function store(Request $request)',
             'public function update(Request $request, string $id)',
             'public function destroy(string $id)',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
 
         $this->assertFileNotContains([
             'public function create()',
             'public function edit($id)',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
     }
 
     public function testItCanGenerateControllerFileWithInvokableIgnoresApiOption()
@@ -147,18 +147,18 @@ class ControllerMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Http\Controllers;',
+            'namespace App\Controllers;',
             'use Illuminate\Http\Request;',
             'class FooController',
             'public function __invoke(Request $request)',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
 
         $this->assertFileNotContains([
             'public function index()',
             'public function store(Request $request)',
             'public function update(Request $request, $id)',
             'public function destroy($id)',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
     }
 
     public function testItCanGenerateControllerFileWithApiAndModelOption()
@@ -168,19 +168,19 @@ class ControllerMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Http\Controllers;',
+            'namespace App\Controllers;',
             'use App\Models\Foo;',
             'public function index()',
             'public function store(Request $request)',
             'public function show(Foo $foo)',
             'public function update(Request $request, Foo $foo)',
             'public function destroy(Foo $foo)',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
 
         $this->assertFileNotContains([
             'public function create()',
             'public function edit(Foo $foo)',
-        ], 'app/Http/Controllers/FooController.php');
+        ], 'app/Controllers/FooController.php');
     }
 
     public function testItCanGenerateControllerFileWithTest()
@@ -188,7 +188,7 @@ class ControllerMakeCommandTest extends TestCase
         $this->artisan('make:controller', ['name' => 'FooController', '--test' => true])
             ->assertExitCode(0);
 
-        $this->assertFilenameExists('app/Http/Controllers/FooController.php');
-        $this->assertFilenameExists('tests/Feature/Http/Controllers/FooControllerTest.php');
+        $this->assertFilenameExists('app/Controllers/FooController.php');
+        $this->assertFilenameExists('tests/Feature/Controllers/FooControllerTest.php');
     }
 }

@@ -5,7 +5,7 @@ namespace Illuminate\Tests\Integration\Generators;
 class ConsoleMakeCommandTest extends TestCase
 {
     protected $files = [
-        'app/Console/Commands/FooCommand.php',
+        'app/Commands/FooCommand.php',
     ];
 
     public function testItCanGenerateConsoleFile()
@@ -14,11 +14,11 @@ class ConsoleMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Console\Commands;',
+            'namespace App\Commands;',
             'use Illuminate\Console\Command;',
             'class FooCommand extends Command',
             'protected $signature = \'app:foo-command\';',
-        ], 'app/Console/Commands/FooCommand.php');
+        ], 'app/Commands/FooCommand.php');
     }
 
     public function testItCanGenerateConsoleFileWithCommandOption()
@@ -27,10 +27,10 @@ class ConsoleMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Console\Commands;',
+            'namespace App\Commands;',
             'use Illuminate\Console\Command;',
             'class FooCommand extends Command',
             'protected $signature = \'foo:bar\';',
-        ], 'app/Console/Commands/FooCommand.php');
+        ], 'app/Commands/FooCommand.php');
     }
 }

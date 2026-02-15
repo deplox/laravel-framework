@@ -2,7 +2,7 @@
 
 namespace Illuminate\Foundation\Console;
 
-use App\Http\Middleware\PreventRequestsDuringMaintenance as AppPreventRequestsDuringMaintenance;
+use App\Middleware\PreventRequestsDuringMaintenance as AppPreventRequestsDuringMaintenance;
 use DateTimeInterface;
 use Exception;
 use Illuminate\Console\Command;

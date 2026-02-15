@@ -566,7 +566,11 @@ class Migrator
      */
     protected function getMigrationClass(string $migrationName): string
     {
-        return Str::studly(implode('_', array_slice(explode('_', $migrationName), 4)));
+        $segments = explode('_', $migrationName);
+
+        $offset = (count($segments) > 0 && is_numeric($segments[0]) && strlen($segments[0]) > 4) ? 1 : 4;
+
+        return Str::studly(implode('_', array_slice($segments, $offset)));
     }
 
     /**
