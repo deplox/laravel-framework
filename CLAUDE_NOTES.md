@@ -16,11 +16,11 @@ Analysis and Overview
 
   Debatable
 
-  - ULID session IDs — Technically sound, but the stub adds a real FK constraint on user_id (upstream avoids this deliberately), and last_activity changed to timestamp while the handler
-  still writes an integer.
+  - ULID session IDs — Technically sound, but foreignUlid('user_id') adds a ULID column with an index (no actual FK constraint since constrained() is not called), and last_activity remains
+  an integer.
   - Configurable verified_at — Nice flexibility, but silently renaming the default from email_verified_at to verified_at will break every existing database.
   - Forward-only migration stubs — Valid philosophy, but surprising for developers who rely on rollback during development.
-  - Notification 'notification' alias — Follows Laravel conventions but is missing alias('notification', ChannelManager::class), which could break packages resolving by FQCN.
+  - Notification 'notification' alias — Follows Laravel conventions. All three aliases are properly registered (DispatcherContract, FactoryContract, and ChannelManager::class).
 
   The Risky
 
@@ -81,8 +81,9 @@ Suggestions and Plan
  5. Constants instead of mutable properties for auth column names (Authenticatable)
 
  Verdict: Good pattern, with caveats.
- const AUTH_PASSWORD = 'password' with static::AUTH_PASSWORD is cleaner than mutable properties for what are effectively class-level configuration values. Late static binding allows child
- class overrides. However, this breaks any code that set $this->rememberTokenName = 'x' at runtime — a pattern some packages use.
+ const AUTH_PASSWORD = 'password', const EMAIL = 'email', and const REMEMBER_ME with static:: access is cleaner than mutable properties for what are effectively class-level configuration
+ values. Late static binding allows child class overrides. The EMAIL constant + getEmailName() accessor is used by both CanResetPassword and MustVerifyEmail traits. GenericUser mirrors
+ these constants (plus AUTH_IDENTIFIER). However, this breaks any code that set $this->rememberTokenName = 'x' at runtime — a pattern some packages use.
 
  6. DDEV local development environment
 
@@ -97,10 +98,9 @@ Suggestions and Plan
 
  Verdict: Technically sound but heavy-handed.
  ULIDs are time-sortable and globally unique — good properties for session IDs. But:
- - The session database.stub adds foreignUlid('user_id')->constrained(), creating a real FK constraint. Upstream deliberately avoids this because session rows shouldn't prevent user
- deletion.
- - last_activity changed from integer (Unix timestamp) to timestamp, but the DatabaseSessionHandler still writes Carbon::now()->getTimestamp() (an integer). This mismatch could cause type
- errors depending on the database driver.
+ - The session database.stub uses foreignUlid('user_id') without ->constrained(), so it creates a ULID column with an index but no actual FK constraint. This is fine — upstream also avoids
+ a real FK constraint because session rows shouldn't prevent user deletion.
+ - last_activity remains an integer column, consistent with DatabaseSessionHandler writing Carbon::now()->getTimestamp().
  - Existing session tables become incompatible (40-char random string vs 26-char ULID).
 
  8. Configurable verified_at column (MustVerifyEmail)
@@ -108,6 +108,7 @@ Suggestions and Plan
  Verdict: Nice flexibility, but the default rename is risky.
  Making the column name a constant that child classes can override is genuinely useful. However, the default changed from email_verified_at to verified_at. Every existing Laravel database
  has email_verified_at. This silent rename will cause column-not-found errors on any existing app.
+ Note: This is a conscious breaking change — this fork targets new applications only. Existing databases would need to rename the column or override the constant in their User model.
 
  9. Forward-only migration stubs (removed down())
 
@@ -117,10 +118,9 @@ Suggestions and Plan
 
  10. Notification service provider string alias ('notification' instead of ChannelManager::class)
 
- Verdict: Correct convention, incomplete implementation.
- Laravel core services use string aliases ('cache', 'db', 'queue'). Binding as 'notification' follows this pattern. However, the change doesn't add $this->app->alias('notification',
- ChannelManager::class), which means any code (or third-party package) resolving ChannelManager::class directly from the container will get a fresh instance instead of the singleton. This
- needs that extra alias line to be safe.
+ Verdict: Correct convention, complete implementation.
+ Laravel core services use string aliases ('cache', 'db', 'queue'). Binding as 'notification' follows this pattern. All three aliases are properly registered: DispatcherContract::class,
+ FactoryContract::class, and ChannelManager::class. Code resolving by any of these identifiers will get the same singleton instance.
 
 
 
@@ -190,13 +190,13 @@ Suggestions and Plan
  ├───────────────────────────────────┼───────────┼───────────┼──────────────────────────────────────────┤
  │ DDEV environment                  │ Good      │ None      │ Keep (or .gitignore)                     │
  ├───────────────────────────────────┼───────────┼───────────┼──────────────────────────────────────────┤
- │ ULID session IDs                  │ Decent    │ Medium    │ Fix FK constraint and timestamp mismatch │
+ │ ULID session IDs                  │ Decent    │ Medium    │ No FK constraint or timestamp issues     │
  ├───────────────────────────────────┼───────────┼───────────┼──────────────────────────────────────────┤
  │ Configurable verified_at          │ Decent    │ Medium    │ Change default back to email_verified_at │
  ├───────────────────────────────────┼───────────┼───────────┼──────────────────────────────────────────┤
  │ Forward-only stubs                │ Decent    │ Medium    │ Consider adding empty down() instead     │
  ├───────────────────────────────────┼───────────┼───────────┼──────────────────────────────────────────┤
- │ Notification string alias         │ Decent    │ Medium    │ Add ChannelManager::class alias          │
+ │ Notification string alias         │ Good      │ Low       │ Complete — all aliases registered         │
  ├───────────────────────────────────┼───────────┼───────────┼──────────────────────────────────────────┤
  │ ULID default PKs                  │ Risky     │ High      │ Make opt-in, not default                 │
  ├───────────────────────────────────┼───────────┼───────────┼──────────────────────────────────────────┤

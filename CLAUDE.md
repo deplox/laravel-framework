@@ -8,8 +8,10 @@ This is an **opinionated fork** of the Laravel Framework core repository, based 
 
 ### Git Workflow
 
-- Working branch: `gitbutler/workspace`
+- **GitButler** manages all branching and version control for this project
+- Working branch: `gitbutler/workspace` (always; never switch away)
 - Upstream base: `12.x`
+- Do NOT make commits, push, create branches, or perform other git operations — GitButler handles all version control
 - Do not rebase onto or merge from upstream without explicit instruction
 
 ## Fork-Specific Changes
@@ -24,17 +26,19 @@ These are the key differences from upstream Laravel 12.x. Be aware of these when
 
 **Auth Changes**:
 - `MustVerifyEmail` contract is on the base User model (upstream leaves it opt-in)
-- Auth column names use constants instead of mutable properties (e.g., `const AUTH_PASSWORD = 'password'` with late static binding)
+- Auth column names use constants instead of mutable properties (e.g., `const AUTH_PASSWORD = 'password'`, `const EMAIL = 'email'` with late static binding)
 - `verified_at` column instead of upstream's `email_verified_at`
 - Password reset and email verification use `Notification::send()` instead of `$this->notify()` (decoupled from Notifiable trait)
 
-**Middleware**: `RedirectIfAuthenticated` throws `AuthorizationException` for JSON requests instead of redirecting (returns 403).
+**Middleware**: `RedirectIfAuthenticated` throws `HttpException(403)` for JSON requests instead of redirecting.
 
 **Policy**: `viewAny` resource ability renamed to `list`.
 
 **Notification Provider**: ChannelManager bound under `'notification'` string alias.
 
-**Other Fixes**: mb_substr for UTF-8 safe User-Agent truncation in DatabaseSessionHandler; Folio referenced with FQN to avoid import of optional dependency.
+**Broadcasting Provider**: BroadcastManager bound under `'broadcast'` string alias (matching other manager services like `'cache'`, `'db'`, `'queue'`).
+
+**Other Fixes**: mb_substr for UTF-8 safe User-Agent truncation in DatabaseSessionHandler; Folio and Octane referenced with FQN to avoid import of optional dependencies.
 
 See `CLAUDE_NOTES.md` for the full analysis of each change with risk assessments and recommendations.
 
@@ -141,3 +145,17 @@ PSR-4 namespaces: `Illuminate\` maps to `src/Illuminate/`. Some Support subnames
 - CI matrix: PHP 8.2-8.5, PHPUnit 10.5/11.5/12.x, both prefer-lowest and prefer-stable
 - CI uses `--fail-on-deprecation` for prefer-stable runs; deprecation warnings must be resolved
 - Tests also run on Windows (windows-2022) to ensure cross-platform compatibility
+
+## Known Pitfalls
+
+Hard-won lessons from previous work on this fork. Read these before making changes in these areas.
+
+**Model defaults are untouchable**: Changing `Model::$keyType` or `Model::$incrementing` defaults breaks 250+ tests. The test suite has hundreds of ad-hoc model stubs that rely on the default values. ULID support is properly handled via the `HasUlids` trait and migration stubs — do not change the base Model.
+
+**Trait method collisions in `Foundation\Auth\User`**: This class uses both `MustVerifyEmail` and `CanResetPassword` traits. Adding the same method (e.g., `routeNotificationForMail()`) to both causes a fatal error. Leave notification routing to the `Notifiable` trait.
+
+**Forward-only migration stubs**: When removing `down()` from stubs, you must also update assertions in 8 test files that check for `Schema::dropIfExists`: `SessionTableCommandTest`, `CacheTableCommandTest`, `NotificationTableCommandTest`, `QueueTableCommandTest`, `QueueFailedTableCommandTest`, `QueueBatchesTableCommandTest`, `MigrateMakeCommandTest`, `ModelMakeCommandTest`.
+
+**Namespace flattening is partial**: Not all generators are updated. Test `class_alias` calls and file paths in generator tests must match the flattened directory structure (e.g., `app/Controllers/` not `app/Http/Controllers/`). Check `TransformsToResource::guessResourceName()` and `ConsoleMakeCommand` which already use flat namespaces.
+
+**Auth guard mock updates**: Adding null-safety guards (e.g., checking `getRememberTokenName()`) to auth components requires updating mocks in `tests/Auth/AuthGuardTest.php` that don't set up those expectations.
