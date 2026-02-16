@@ -5,6 +5,13 @@ namespace Illuminate\Auth;
 trait Authenticatable
 {
     /**
+     * The column name of the email field.
+     *
+     * @var string
+     */
+    const EMAIL = 'email';
+
+    /**
      * The column name of the password field using during authentication.
      *
      * @var string
@@ -66,6 +73,16 @@ trait Authenticatable
     public function getAuthPassword()
     {
         return $this->{$this->getAuthPasswordName()};
+    }
+
+    /**
+     * Get the name of the email attribute for the user.
+     *
+     * @return string
+     */
+    public function getEmailName()
+    {
+        return static::EMAIL;
     }
 
     /**

@@ -16,15 +16,14 @@ class BroadcastServiceProvider extends ServiceProvider implements DeferrableProv
      */
     public function register()
     {
-        $this->app->singleton(BroadcastManager::class, fn ($app) => new BroadcastManager($app));
+        $this->app->singleton('broadcast', fn ($app) => new BroadcastManager($app));
+
+        $this->app->alias('broadcast', BroadcastManager::class);
+        $this->app->alias('broadcast', BroadcastingFactory::class);
 
         $this->app->singleton(BroadcasterContract::class, function ($app) {
-            return $app->make(BroadcastManager::class)->connection();
+            return $app->make('broadcast')->connection();
         });
-
-        $this->app->alias(
-            BroadcastManager::class, BroadcastingFactory::class
-        );
     }
 
     /**
@@ -35,6 +34,7 @@ class BroadcastServiceProvider extends ServiceProvider implements DeferrableProv
     public function provides()
     {
         return [
+            'broadcast',
             BroadcastManager::class,
             BroadcastingFactory::class,
             BroadcasterContract::class,

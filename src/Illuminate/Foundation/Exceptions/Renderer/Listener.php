@@ -6,10 +6,6 @@ use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobProcessing;
-use Laravel\Octane\Events\RequestReceived;
-use Laravel\Octane\Events\RequestTerminated;
-use Laravel\Octane\Events\TaskReceived;
-use Laravel\Octane\Events\TickReceived;
 
 class Listener
 {
@@ -35,7 +31,12 @@ class Listener
         });
 
         if (isset($_SERVER['LARAVEL_OCTANE'])) {
-            $events->listen([RequestReceived::class, TaskReceived::class, TickReceived::class, RequestTerminated::class], function () {
+            $events->listen([
+                \Laravel\Octane\Events\RequestReceived::class,
+                \Laravel\Octane\Events\TaskReceived::class,
+                \Laravel\Octane\Events\TickReceived::class,
+                \Laravel\Octane\Events\RequestTerminated::class,
+            ], function () {
                 $this->queries = [];
             });
         }
