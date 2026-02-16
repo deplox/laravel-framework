@@ -7,6 +7,34 @@ use Illuminate\Contracts\Auth\Authenticatable as UserContract;
 class GenericUser implements UserContract
 {
     /**
+     * The column name of the unique identifier.
+     *
+     * @var string
+     */
+    const AUTH_IDENTIFIER = 'id';
+
+    /**
+     * The column name of the email field.
+     *
+     * @var string
+     */
+    const EMAIL = 'email';
+
+    /**
+     * The column name of the password field.
+     *
+     * @var string
+     */
+    const AUTH_PASSWORD = 'password';
+
+    /**
+     * The name of the "remember me" token column.
+     *
+     * @var string
+     */
+    const REMEMBER_ME = 'remember_token';
+
+    /**
      * All of the user's attributes.
      *
      * @var array
@@ -30,7 +58,7 @@ class GenericUser implements UserContract
      */
     public function getAuthIdentifierName()
     {
-        return 'id';
+        return static::AUTH_IDENTIFIER;
     }
 
     /**
@@ -50,7 +78,7 @@ class GenericUser implements UserContract
      */
     public function getAuthPasswordName()
     {
-        return 'password';
+        return static::AUTH_PASSWORD;
     }
 
     /**
@@ -95,7 +123,7 @@ class GenericUser implements UserContract
      */
     public function getRememberTokenName()
     {
-        return 'remember_token';
+        return static::REMEMBER_ME;
     }
 
     /**

@@ -65,7 +65,7 @@ trait MustVerifyEmail
      */
     public function getEmailForVerification()
     {
-        return $this->email;
+        return $this->{$this->getEmailName()};
     }
 
     /**
