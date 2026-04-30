@@ -143,6 +143,24 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->findOrFail('bar', ['column']);
     }
 
+    public function testFindOrFailMethodThrowsModelNotFoundExceptionWithBackedEnum()
+    {
+        $exception = new ModelNotFoundException;
+        $exception->setModel('Foo', EloquentBuilderTestBackedEnum::Bar);
+
+        $this->assertSame('No query results for model [Foo] bar', $exception->getMessage());
+        $this->assertSame(['bar'], $exception->getIds());
+    }
+
+    public function testFindOrFailMethodThrowsModelNotFoundExceptionWithUnitEnum()
+    {
+        $exception = new ModelNotFoundException;
+        $exception->setModel('Foo', EloquentBuilderTestUnitEnum::Baz);
+
+        $this->assertSame('No query results for model [Foo] Baz', $exception->getMessage());
+        $this->assertSame(['Baz'], $exception->getIds());
+    }
+
     public function testFindOrFailMethodWithManyThrowsModelNotFoundException()
     {
         $this->expectException(ModelNotFoundException::class);
@@ -2740,6 +2758,25 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(2, $result);
     }
 
+    public function testTouchWithMultipleColumns()
+    {
+        Carbon::setTestNow($now = '2017-10-10 10:10:10');
+
+        $query = m::mock(BaseBuilder::class);
+        $query->shouldReceive('from')->with('foo_table')->andReturn('foo_table');
+        $query->from = 'foo_table';
+
+        $builder = new Builder($query);
+        $model = new EloquentBuilderTestStubStringPrimaryKey;
+        $builder->setModel($model);
+
+        $query->shouldReceive('update')->once()->with(['published_at' => $now, 'verified_at' => $now])->andReturn(2);
+
+        $result = $builder->touch(['published_at', 'verified_at']);
+
+        $this->assertEquals(2, $result);
+    }
+
     public function testTouchWithoutUpdatedAtColumn()
     {
         $query = m::mock(BaseBuilder::class);
@@ -3167,4 +3204,14 @@ class EloquentBuilderTestWhereBelongsToStub extends Model
     {
         return $this->belongsTo(self::class, 'parent_id', 'id', 'parent');
     }
+}
+
+enum EloquentBuilderTestBackedEnum: string
+{
+    case Bar = 'bar';
+}
+
+enum EloquentBuilderTestUnitEnum
+{
+    case Baz;
 }
