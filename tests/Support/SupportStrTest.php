@@ -90,6 +90,19 @@ class SupportStrTest extends TestCase
         $this->assertSame('Orwell 1984', Str::headline(' orwell_- 1984 '));
     }
 
+    public function testStringInitials()
+    {
+        $this->assertSame('jb', Str::initials('james bond'));
+        $this->assertSame('jb', Str::initials(' james bond'));
+        $this->assertSame('jb', Str::initials('james  bond'));
+
+        $this->assertSame('JB', Str::initials('James Bond'));
+
+        $this->assertSame('JB', Str::initials('james bond', true));
+
+        $this->assertSame('JBLL', Str::initials('james bond loves laravel', true));
+    }
+
     public function testStringApa()
     {
         $this->assertSame('Tom and Jerry', Str::apa('tom and jerry'));
@@ -560,8 +573,8 @@ class SupportStrTest extends TestCase
 
     public function testWrap()
     {
-        $this->assertEquals('"value"', Str::wrap('value', '"'));
-        $this->assertEquals('foo-bar-baz', Str::wrap('-bar-', 'foo', 'baz'));
+        $this->assertSame('"value"', Str::wrap('value', '"'));
+        $this->assertSame('foo-bar-baz', Str::wrap('-bar-', 'foo', 'baz'));
     }
 
     public function testWrapEdgeCases()
@@ -577,11 +590,11 @@ class SupportStrTest extends TestCase
 
     public function testUnwrap()
     {
-        $this->assertEquals('value', Str::unwrap('"value"', '"'));
-        $this->assertEquals('value', Str::unwrap('"value', '"'));
-        $this->assertEquals('value', Str::unwrap('value"', '"'));
-        $this->assertEquals('bar', Str::unwrap('foo-bar-baz', 'foo-', '-baz'));
-        $this->assertEquals('some: "json"', Str::unwrap('{some: "json"}', '{', '}'));
+        $this->assertSame('value', Str::unwrap('"value"', '"'));
+        $this->assertSame('value', Str::unwrap('"value', '"'));
+        $this->assertSame('value', Str::unwrap('value"', '"'));
+        $this->assertSame('bar', Str::unwrap('foo-bar-baz', 'foo-', '-baz'));
+        $this->assertSame('some: "json"', Str::unwrap('{some: "json"}', '{', '}'));
     }
 
     public function testIs()
@@ -1231,10 +1244,10 @@ class SupportStrTest extends TestCase
 
     public function testCharAt()
     {
-        $this->assertEquals('р', Str::charAt('Привет, мир!', 1));
-        $this->assertEquals('ち', Str::charAt('「こんにちは世界」', 4));
-        $this->assertEquals('w', Str::charAt('Привет, world!', 8));
-        $this->assertEquals('界', Str::charAt('「こんにちは世界」', -2));
+        $this->assertSame('р', Str::charAt('Привет, мир!', 1));
+        $this->assertSame('ち', Str::charAt('「こんにちは世界」', 4));
+        $this->assertSame('w', Str::charAt('Привет, world!', 8));
+        $this->assertSame('界', Str::charAt('「こんにちは世界」', -2));
         $this->assertEquals(null, Str::charAt('「こんにちは世界」', -200));
         $this->assertEquals(null, Str::charAt('Привет, мир!', 100));
     }
@@ -1412,8 +1425,11 @@ class SupportStrTest extends TestCase
         $this->assertEquals(2, Str::wordCount('Hello, world!'));
         $this->assertEquals(10, Str::wordCount('Hi, this is my first contribution to the Laravel framework.'));
 
-        $this->assertEquals(0, Str::wordCount('мама'));
-        $this->assertEquals(0, Str::wordCount('мама мыла раму'));
+        // str_word_count() without $characters does not reliably handle multibyte
+        // strings — results depend on the system locale's isalpha() behavior
+        // (e.g. macOS 15+ changed LC_CTYPE defaults). See php/php-src#19828.
+        $this->assertEquals(str_word_count('мама'), Str::wordCount('мама'));
+        $this->assertEquals(str_word_count('мама мыла раму'), Str::wordCount('мама мыла раму'));
 
         $this->assertEquals(1, Str::wordCount('мама', 'абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ'));
         $this->assertEquals(3, Str::wordCount('мама мыла раму', 'абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ'));
@@ -1424,10 +1440,10 @@ class SupportStrTest extends TestCase
 
     public function testWordWrap()
     {
-        $this->assertEquals('Hello<br />World', Str::wordWrap('Hello World', 3, '<br />'));
-        $this->assertEquals('Hel<br />lo<br />Wor<br />ld', Str::wordWrap('Hello World', 3, '<br />', true));
+        $this->assertSame('Hello<br />World', Str::wordWrap('Hello World', 3, '<br />'));
+        $this->assertSame('Hel<br />lo<br />Wor<br />ld', Str::wordWrap('Hello World', 3, '<br />', true));
 
-        $this->assertEquals('❤Multi<br />Byte☆❤☆❤☆❤', Str::wordWrap('❤Multi Byte☆❤☆❤☆❤', 3, '<br />'));
+        $this->assertSame('❤Multi<br />Byte☆❤☆❤☆❤', Str::wordWrap('❤Multi Byte☆❤☆❤☆❤', 3, '<br />'));
     }
 
     public static function validUuidList()
@@ -1558,12 +1574,14 @@ class SupportStrTest extends TestCase
     {
         $this->assertSame("<p><em>hello world</em></p>\n", Str::markdown('*hello world*'));
         $this->assertSame("<h1>hello world</h1>\n", Str::markdown('# hello world'));
+        $this->assertSame('', Str::markdown(null));
     }
 
     public function testInlineMarkdown()
     {
         $this->assertSame("<em>hello world</em>\n", Str::inlineMarkdown('*hello world*'));
         $this->assertSame("<a href=\"https://laravel.com\"><strong>Laravel</strong></a>\n", Str::inlineMarkdown('[**Laravel**](https://laravel.com)'));
+        $this->assertSame('', Str::inlineMarkdown(null));
     }
 
     public function testRepeat()
@@ -1604,6 +1622,7 @@ class SupportStrTest extends TestCase
     {
         $this->assertSame('HHH', Str::transliterate('🎂🚧🏆', 'H'));
         $this->assertSame('Hello', Str::transliterate('🎂', 'Hello'));
+        $this->assertSame('', Str::transliterate(null));
     }
 
     #[DataProvider('specialCharacterProvider')]

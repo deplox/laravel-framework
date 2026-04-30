@@ -2,12 +2,13 @@
 
 namespace Illuminate\Tests\Queue;
 
-use Carbon\Carbon;
 use Illuminate\Bus\Batchable;
 use Illuminate\Container\Container;
 use Illuminate\Database\Connection;
 use Illuminate\Queue\DatabaseQueue;
+use Illuminate\Queue\Jobs\InspectedJob;
 use Illuminate\Queue\Queue;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -25,7 +26,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         });
 
         $queue = $this->getMockBuilder(DatabaseQueue::class)->onlyMethods(['currentTime'])->setConstructorArgs([$database = m::mock(Connection::class), 'table', 'default'])->getMock();
-        $queue->expects($this->any())->method('currentTime')->willReturn('time');
+        $queue->method('currentTime')->willReturn('time');
         $queue->setContainer($container = m::spy(Container::class));
         $database->shouldReceive('table')->with('table')->andReturn($query = m::mock(stdClass::class));
         $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) use ($uuid, $displayNameStartsWith, $jobStartsWith) {
@@ -73,7 +74,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             ->onlyMethods(['currentTime'])
             ->setConstructorArgs([$database = m::mock(Connection::class), 'table', 'default'])
             ->getMock();
-        $queue->expects($this->any())->method('currentTime')->willReturn('time');
+        $queue->method('currentTime')->willReturn('time');
         $queue->setContainer($container = m::spy(Container::class));
         $database->shouldReceive('table')->with('table')->andReturn($query = m::mock(stdClass::class));
         $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) use ($uuid, $time) {
@@ -103,7 +104,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $job = (new MyBatchableJob)->withBatchId('test-batch-id');
 
         $queue = $this->getMockBuilder(DatabaseQueue::class)->onlyMethods(['currentTime'])->setConstructorArgs([$database = m::mock(Connection::class), 'table', 'default'])->getMock();
-        $queue->expects($this->any())->method('currentTime')->willReturn('time');
+        $queue->method('currentTime')->willReturn('time');
         $queue->setContainer($container = m::spy(Container::class));
         $database->shouldReceive('table')->with('table')->andReturn($query = m::mock(stdClass::class));
         $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) {
@@ -162,8 +163,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $database = m::mock(Connection::class);
         $queue = $this->getMockBuilder(DatabaseQueue::class)->onlyMethods(['currentTime', 'availableAt'])->setConstructorArgs([$database, 'table', 'default'])->getMock();
-        $queue->expects($this->any())->method('currentTime')->willReturn('created');
-        $queue->expects($this->any())->method('availableAt')->willReturn('available');
+        $queue->method('currentTime')->willReturn('created');
+        $queue->method('availableAt')->willReturn('available');
         $database->shouldReceive('table')->with('table')->andReturn($query = m::mock(stdClass::class));
         $query->shouldReceive('insert')->once()->andReturnUsing(function ($records) use ($uuid, $time) {
             $this->assertEquals([[
@@ -195,6 +196,98 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $record = $queue->buildDatabaseRecord('queue', 'any_payload', 0);
         $this->assertArrayHasKey('payload', $record);
         $this->assertArrayHasKey('payload', array_slice($record, -1, 1, true));
+    }
+
+    public function testPendingJobs()
+    {
+        $queue = new DatabaseQueue($database = m::mock(Connection::class), 'table', 'default');
+        $queue->setContainer(m::spy(Container::class));
+
+        $payload = json_encode(['uuid' => 'test-uuid', 'displayName' => 'MyTestJob', 'job' => 'foo', 'data' => [], 'createdAt' => 1000000]);
+
+        $database->shouldReceive('table')->with('table')->andReturn($query = m::mock(stdClass::class));
+        $query->shouldReceive('where')->with('queue', 'default')->andReturnSelf();
+        $query->shouldReceive('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->shouldReceive('where')->with('available_at', '<=', m::any())->andReturnSelf();
+        $query->shouldReceive('get')->andReturn(collect([(object) ['id' => 1, 'queue' => 'default', 'payload' => $payload, 'attempts' => 0, 'reserved_at' => null]]));
+
+        $jobs = $queue->pendingJobs();
+
+        $this->assertCount(1, $jobs);
+        $this->assertInstanceOf(InspectedJob::class, $jobs->first());
+        $this->assertSame('MyTestJob', $jobs->first()->name);
+        $this->assertSame('test-uuid', $jobs->first()->uuid);
+        $this->assertSame(0, $jobs->first()->attempts);
+        $this->assertInstanceOf(Carbon::class, $jobs->first()->createdAt);
+        $this->assertSame(1000000, $jobs->first()->createdAt->getTimestamp());
+    }
+
+    public function testDelayedJobs()
+    {
+        $queue = new DatabaseQueue($database = m::mock(Connection::class), 'table', 'default');
+        $queue->setContainer(m::spy(Container::class));
+
+        $payload = json_encode(['uuid' => 'test-uuid', 'displayName' => 'MyDelayedJob', 'job' => 'foo', 'data' => [], 'createdAt' => 1000000]);
+
+        $database->shouldReceive('table')->with('table')->andReturn($query = m::mock(stdClass::class));
+        $query->shouldReceive('where')->with('queue', 'default')->andReturnSelf();
+        $query->shouldReceive('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->shouldReceive('where')->with('available_at', '>', m::any())->andReturnSelf();
+        $query->shouldReceive('get')->andReturn(collect([(object) ['id' => 2, 'queue' => 'default', 'payload' => $payload, 'attempts' => 0, 'reserved_at' => null]]));
+
+        $jobs = $queue->delayedJobs();
+
+        $this->assertCount(1, $jobs);
+        $this->assertInstanceOf(InspectedJob::class, $jobs->first());
+        $this->assertSame('MyDelayedJob', $jobs->first()->name);
+        $this->assertSame('test-uuid', $jobs->first()->uuid);
+        $this->assertSame(0, $jobs->first()->attempts);
+        $this->assertInstanceOf(Carbon::class, $jobs->first()->createdAt);
+        $this->assertSame(1000000, $jobs->first()->createdAt->getTimestamp());
+    }
+
+    public function testReservedJobs()
+    {
+        $queue = new DatabaseQueue($database = m::mock(Connection::class), 'table', 'default');
+        $queue->setContainer(m::spy(Container::class));
+
+        $payload = json_encode(['uuid' => 'test-uuid', 'displayName' => 'MyTestJob', 'job' => 'foo', 'data' => [], 'createdAt' => 1000000]);
+
+        $database->shouldReceive('table')->with('table')->andReturn($query = m::mock(stdClass::class));
+        $query->shouldReceive('where')->with('queue', 'default')->andReturnSelf();
+        $query->shouldReceive('whereNotNull')->with('reserved_at')->andReturnSelf();
+        $query->shouldReceive('get')->andReturn(collect([(object) ['id' => 1, 'queue' => 'default', 'payload' => $payload, 'attempts' => 1, 'reserved_at' => Carbon::now()->getTimestamp()]]));
+
+        $jobs = $queue->reservedJobs();
+
+        $this->assertCount(1, $jobs);
+        $this->assertInstanceOf(InspectedJob::class, $jobs->first());
+        $this->assertSame('MyTestJob', $jobs->first()->name);
+        $this->assertSame('test-uuid', $jobs->first()->uuid);
+        $this->assertSame(1, $jobs->first()->attempts);
+        $this->assertInstanceOf(Carbon::class, $jobs->first()->createdAt);
+        $this->assertSame(1000000, $jobs->first()->createdAt->getTimestamp());
+    }
+
+    public function testGetLockForPoppingIsCached()
+    {
+        $database = m::mock(Connection::class);
+        $queue = new DatabaseQueue($database, 'table', 'default');
+
+        $pdo = m::mock(\PDO::class);
+        $pdo->shouldReceive('getAttribute')->with(\PDO::ATTR_DRIVER_NAME)->once()->andReturn('mysql');
+        $pdo->shouldReceive('getAttribute')->with(\PDO::ATTR_SERVER_VERSION)->once()->andReturn('8.0.36');
+
+        $database->shouldReceive('getPdo')->andReturn($pdo);
+        $database->shouldReceive('getConfig')->with('version')->andReturn(null);
+
+        $method = new \ReflectionMethod($queue, 'getLockForPopping');
+
+        $result1 = $method->invoke($queue);
+        $result2 = $method->invoke($queue);
+
+        $this->assertSame('FOR UPDATE SKIP LOCKED', $result1);
+        $this->assertSame($result1, $result2);
     }
 }
 

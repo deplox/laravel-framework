@@ -356,6 +356,9 @@ class Builder implements BuilderContract
 
             $this->eagerLoad = array_merge($this->eagerLoad, $query->getEagerLoads());
 
+            $this->withoutGlobalScopes(
+                $query->removedScopes()
+            );
             $this->query->addNestedWhereQuery($query->getQuery(), $boolean);
         } else {
             $this->query->where(...func_get_args());
@@ -526,7 +529,7 @@ class Builder implements BuilderContract
             $values = [$values];
         }
 
-        $this->model->unguarded(function () use (&$values) {
+        $this->model::unguarded(function () use (&$values) {
             foreach ($values as $key => $rowValues) {
                 $values[$key] = tap(
                     $this->newModelInstance($rowValues),
@@ -684,16 +687,16 @@ class Builder implements BuilderContract
      * Get the first record matching the attributes or instantiate it.
      *
      * @param  array  $attributes
-     * @param  array  $values
+     * @param  (\Closure(): array)|array  $values
      * @return TModel
      */
-    public function firstOrNew(array $attributes = [], array $values = [])
+    public function firstOrNew(array $attributes = [], Closure|array $values = [])
     {
         if (! is_null($instance = $this->where($attributes)->first())) {
             return $instance;
         }
 
-        return $this->newModelInstance(array_merge($attributes, $values));
+        return $this->newModelInstance(array_merge($attributes, value($values)));
     }
 
     /**
@@ -718,6 +721,8 @@ class Builder implements BuilderContract
      * @param  array  $attributes
      * @param  (\Closure(): array)|array  $values
      * @return TModel
+     *
+     * @throws \Illuminate\Database\UniqueConstraintViolationException
      */
     public function createOrFirst(array $attributes = [], Closure|array $values = [])
     {
@@ -732,14 +737,14 @@ class Builder implements BuilderContract
      * Create or update a record matching the attributes, and fill it with values.
      *
      * @param  array  $attributes
-     * @param  array  $values
+     * @param  (\Closure(): array)|array  $values
      * @return TModel
      */
-    public function updateOrCreate(array $attributes, array $values = [])
+    public function updateOrCreate(array $attributes, Closure|array $values = [])
     {
         return tap($this->firstOrCreate($attributes, $values), function ($instance) use ($values) {
             if (! $instance->wasRecentlyCreated) {
-                $instance->fill($values)->save();
+                $instance->fill(value($values))->save();
             }
         });
     }
@@ -1239,7 +1244,7 @@ class Builder implements BuilderContract
      */
     public function forceCreate(array $attributes)
     {
-        return $this->model->unguarded(function () use ($attributes) {
+        return $this->model::unguarded(function () use ($attributes) {
             return $this->newModelInstance()->create($attributes);
         });
     }
@@ -1298,7 +1303,7 @@ class Builder implements BuilderContract
     /**
      * Update the column's update timestamp.
      *
-     * @param  string|null  $column
+     * @param  array|string|null  $column
      * @return int|false
      */
     public function touch($column = null)
@@ -1306,7 +1311,9 @@ class Builder implements BuilderContract
         $time = $this->model->freshTimestamp();
 
         if ($column) {
-            return $this->toBase()->update([$column => $time]);
+            $columns = (new BaseCollection(Arr::wrap($column)))->mapWithKeys(fn ($column) => [$column => $time])->all();
+
+            return $this->toBase()->update($columns);
         }
 
         $column = $this->model->getUpdatedAtColumn();
@@ -1345,6 +1352,34 @@ class Builder implements BuilderContract
     {
         return $this->toBase()->decrement(
             $column, $amount, $this->addUpdatedAtColumn($extra)
+        );
+    }
+
+    /**
+     * Increment the given column's values by the given amounts.
+     *
+     * @param  array<string, float|int|numeric-string>  $columns
+     * @param  array<string, mixed>  $extra
+     * @return int
+     */
+    public function incrementEach(array $columns, array $extra = [])
+    {
+        return $this->toBase()->incrementEach(
+            $columns, $this->addUpdatedAtColumn($extra)
+        );
+    }
+
+    /**
+     * Decrement the given column's values by the given amounts.
+     *
+     * @param  array<string, float|int|numeric-string>  $columns
+     * @param  array<string, mixed>  $extra
+     * @return int
+     */
+    public function decrementEach(array $columns, array $extra = [])
+    {
+        return $this->toBase()->decrementEach(
+            $columns, $this->addUpdatedAtColumn($extra)
         );
     }
 

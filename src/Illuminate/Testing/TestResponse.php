@@ -19,6 +19,7 @@ use Illuminate\Support\Traits\Dumpable;
 use Illuminate\Support\Traits\Macroable;
 use Illuminate\Support\Traits\Tappable;
 use Illuminate\Support\ViewErrorBag;
+use Illuminate\Testing\Constraints\SeeInHtml;
 use Illuminate\Testing\Constraints\SeeInOrder;
 use Illuminate\Testing\Fluent\AssertableJson;
 use Illuminate\Testing\TestResponseAssert as PHPUnit;
@@ -696,7 +697,7 @@ class TestResponse implements ArrayAccess
     /**
      * Assert that the given string or array of strings are contained within the response.
      *
-     * @param  string|array  $value
+     * @param  string|list<string>  $value
      * @param  bool  $escape
      * @return $this
      */
@@ -716,7 +717,7 @@ class TestResponse implements ArrayAccess
     /**
      * Assert that the given HTML string or array of HTML strings are contained within the response.
      *
-     * @param  array|string  $value
+     * @param  string|list<string>  $value
      * @return $this
      */
     public function assertSeeHtml($value)
@@ -727,7 +728,7 @@ class TestResponse implements ArrayAccess
     /**
      * Assert that the given strings are contained in order within the response.
      *
-     * @param  array  $values
+     * @param  list<string>  $values
      * @param  bool  $escape
      * @return $this
      */
@@ -743,7 +744,7 @@ class TestResponse implements ArrayAccess
     /**
      * Assert that the given HTML strings are contained in order within the response.
      *
-     * @param  array  $values
+     * @param  list<string>  $values
      * @return $this
      */
     public function assertSeeHtmlInOrder(array $values)
@@ -754,7 +755,7 @@ class TestResponse implements ArrayAccess
     /**
      * Assert that the given string or array of strings are contained within the response text.
      *
-     * @param  string|array  $value
+     * @param  string|list<string>  $value
      * @param  bool  $escape
      * @return $this
      */
@@ -764,11 +765,7 @@ class TestResponse implements ArrayAccess
 
         $values = $escape ? array_map(e(...), $value) : $value;
 
-        $content = strip_tags($this->getContent());
-
-        foreach ($values as $value) {
-            PHPUnit::withResponse($this)->assertStringContainsString((string) $value, $content);
-        }
+        PHPUnit::withResponse($this)->assertThat($values, new SeeInHtml($this->getContent()));
 
         return $this;
     }
@@ -776,7 +773,7 @@ class TestResponse implements ArrayAccess
     /**
      * Assert that the given strings are contained in order within the response text.
      *
-     * @param  array  $values
+     * @param  list<string>  $values
      * @param  bool  $escape
      * @return $this
      */
@@ -784,7 +781,7 @@ class TestResponse implements ArrayAccess
     {
         $values = $escape ? array_map(e(...), $values) : $values;
 
-        PHPUnit::withResponse($this)->assertThat($values, new SeeInOrder(strip_tags($this->getContent())));
+        PHPUnit::withResponse($this)->assertThat($values, new SeeInHtml($this->getContent(), true));
 
         return $this;
     }
@@ -792,7 +789,7 @@ class TestResponse implements ArrayAccess
     /**
      * Assert that the given string or array of strings are not contained within the response.
      *
-     * @param  string|array  $value
+     * @param  string|list<string>  $value
      * @param  bool  $escape
      * @return $this
      */
@@ -812,7 +809,7 @@ class TestResponse implements ArrayAccess
     /**
      * Assert that the given HTML string or array of HTML strings are not contained within the response.
      *
-     * @param  array|string  $value
+     * @param  string|list<string>  $value
      * @return $this
      */
     public function assertDontSeeHtml($value)
@@ -823,7 +820,7 @@ class TestResponse implements ArrayAccess
     /**
      * Assert that the given string or array of strings are not contained within the response text.
      *
-     * @param  string|array  $value
+     * @param  string|list<string>  $value
      * @param  bool  $escape
      * @return $this
      */
@@ -833,11 +830,7 @@ class TestResponse implements ArrayAccess
 
         $values = $escape ? array_map(e(...), $value) : $value;
 
-        $content = strip_tags($this->getContent());
-
-        foreach ($values as $value) {
-            PHPUnit::withResponse($this)->assertStringNotContainsString((string) $value, $content);
-        }
+        PHPUnit::withResponse($this)->assertThat($values, new SeeInHtml($this->getContent(), negate: true));
 
         return $this;
     }
@@ -878,6 +871,20 @@ class TestResponse implements ArrayAccess
     public function assertJsonPath($path, $expect)
     {
         $this->decodeResponseJson()->assertPath($path, $expect);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the expected values and types exist at the given paths in the response.
+     *
+     * @return $this
+     */
+    public function assertJsonPaths(array $paths)
+    {
+        foreach ($paths as $path => $expected) {
+            $this->assertJsonPath($path, $expected);
+        }
 
         return $this;
     }
@@ -986,6 +993,20 @@ class TestResponse implements ArrayAccess
     public function assertJsonMissingPath(string $path)
     {
         $this->decodeResponseJson()->assertMissingPath($path);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response does not contain the given paths.
+     *
+     * @return $this
+     */
+    public function assertJsonMissingPaths(array $paths)
+    {
+        foreach ($paths as $path) {
+            $this->assertJsonMissingPath($path);
+        }
 
         return $this;
     }

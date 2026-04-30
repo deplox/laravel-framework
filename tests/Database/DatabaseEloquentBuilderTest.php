@@ -29,7 +29,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Carbon::setTestNow(null);
+        Carbon::setTestNow();
 
         parent::tearDown();
     }
@@ -141,6 +141,24 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getQuery()->shouldReceive('where')->once()->with('foo_table.foo', '=', 'bar');
         $builder->shouldReceive('first')->with(['column'])->andReturn(null);
         $builder->findOrFail('bar', ['column']);
+    }
+
+    public function testFindOrFailMethodThrowsModelNotFoundExceptionWithBackedEnum()
+    {
+        $exception = new ModelNotFoundException;
+        $exception->setModel('Foo', EloquentBuilderTestBackedEnum::Bar);
+
+        $this->assertSame('No query results for model [Foo] bar', $exception->getMessage());
+        $this->assertSame(['bar'], $exception->getIds());
+    }
+
+    public function testFindOrFailMethodThrowsModelNotFoundExceptionWithUnitEnum()
+    {
+        $exception = new ModelNotFoundException;
+        $exception->setModel('Foo', EloquentBuilderTestUnitEnum::Baz);
+
+        $this->assertSame('No query results for model [Foo] Baz', $exception->getMessage());
+        $this->assertSame(['Baz'], $exception->getIds());
     }
 
     public function testFindOrFailMethodWithManyThrowsModelNotFoundException()
@@ -336,7 +354,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getModel()->shouldReceive('newCollection')->with([])->andReturn(new Collection([]));
 
         $results = $builder->get(['foo']);
-        $this->assertEquals([], $results->all());
+        $this->assertSame([], $results->all());
     }
 
     public function testValueMethodWithModelFound()
@@ -1054,6 +1072,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $nestedRawQuery = $this->getMockQueryBuilder();
         $nestedQuery->shouldReceive('getQuery')->once()->andReturn($nestedRawQuery);
         $nestedQuery->shouldReceive('getEagerLoads')->once()->andReturn([]);
+        $nestedQuery->shouldReceive('removedScopes')->once()->andReturn([]);
         $model = $this->getMockModel()->makePartial();
         $model->shouldReceive('newQueryWithoutRelationships')->once()->andReturn($nestedQuery);
         $builder = $this->getBuilder();
@@ -1106,7 +1125,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new EloquentBuilderTestStub();
         $this->mockConnectionForModel($model, 'SQLite');
         $query = $model->newQuery()->whereNot('name', 'foo')->whereNot('name', '<>', 'bar');
-        $this->assertEquals('select * from "table" where not "name" = ? and not "name" <> ?', $query->toSql());
+        $this->assertSame('select * from "table" where not "name" = ? and not "name" <> ?', $query->toSql());
         $this->assertEquals(['foo', 'bar'], $query->getBindings());
     }
 
@@ -1116,6 +1135,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $nestedRawQuery = $this->getMockQueryBuilder();
         $nestedQuery->shouldReceive('getQuery')->once()->andReturn($nestedRawQuery);
         $nestedQuery->shouldReceive('getEagerLoads')->once()->andReturn([]);
+        $nestedQuery->shouldReceive('removedScopes')->once()->andReturn([]);
         $model = $this->getMockModel()->makePartial();
         $model->shouldReceive('newQueryWithoutRelationships')->once()->andReturn($nestedQuery);
         $builder = $this->getBuilder();
@@ -1135,7 +1155,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new EloquentBuilderTestStub();
         $this->mockConnectionForModel($model, 'SQLite');
         $query = $model->newQuery()->orWhereNot('name', 'foo')->orWhereNot('name', '<>', 'bar');
-        $this->assertEquals('select * from "table" where not "name" = ? or not "name" <> ?', $query->toSql());
+        $this->assertSame('select * from "table" where not "name" = ? or not "name" <> ?', $query->toSql());
         $this->assertEquals(['foo', 'bar'], $query->getBindings());
     }
 
@@ -1145,6 +1165,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $nestedRawQuery = $this->getMockQueryBuilder();
         $nestedQuery->shouldReceive('getQuery')->once()->andReturn($nestedRawQuery);
         $nestedQuery->shouldReceive('getEagerLoads')->once()->andReturn([]);
+        $nestedQuery->shouldReceive('removedScopes')->once()->andReturn([]);
         $model = $this->getMockModel()->makePartial();
         $model->shouldReceive('newQueryWithoutRelationships')->once()->andReturn($nestedQuery);
         $builder = $this->getBuilder();
@@ -2676,7 +2697,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $result = $builder->from('table as alias')->update(['foo' => 'bar', 'alias.updated_at' => null]);
         $this->assertEquals(1, $result);
 
-        Carbon::setTestNow(null);
+        Carbon::setTestNow();
     }
 
     public function testUpsert()
@@ -2736,6 +2757,25 @@ class DatabaseEloquentBuilderTest extends TestCase
         $query->shouldReceive('update')->once()->with(['published_at' => $now])->andReturn(2);
 
         $result = $builder->touch('published_at');
+
+        $this->assertEquals(2, $result);
+    }
+
+    public function testTouchWithMultipleColumns()
+    {
+        Carbon::setTestNow($now = '2017-10-10 10:10:10');
+
+        $query = m::mock(BaseBuilder::class);
+        $query->shouldReceive('from')->with('foo_table')->andReturn('foo_table');
+        $query->from = 'foo_table';
+
+        $builder = new Builder($query);
+        $model = new EloquentBuilderTestStubStringPrimaryKey;
+        $builder->setModel($model);
+
+        $query->shouldReceive('update')->once()->with(['published_at' => $now, 'verified_at' => $now])->andReturn(2);
+
+        $result = $builder->touch(['published_at', 'verified_at']);
 
         $this->assertEquals(2, $result);
     }
@@ -2910,6 +2950,67 @@ class DatabaseEloquentBuilderTest extends TestCase
     protected function getBuilder()
     {
         return new Builder($this->getMockQueryBuilder());
+    }
+
+    public function testIncrementEachCallsToBaseWithUpdatedAt()
+    {
+        $query = m::mock(BaseBuilder::class);
+        $query->shouldReceive('from')->with('foo_table');
+        $query->from = 'foo_table';
+        $query->shouldReceive('incrementEach')->once()->withArgs(function ($columns, $extra) {
+            return $columns === ['votes' => 5] && array_key_exists('foo_table.updated_at', $extra);
+        })->andReturn(1);
+
+        $builder = new Builder($query);
+        $model = $this->getMockModel();
+        $model->shouldReceive('usesTimestamps')->andReturn(true);
+        $model->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
+        $model->shouldReceive('freshTimestampString')->andReturn('2026-03-26 00:00:00');
+        $model->shouldReceive('hasSetMutator')->andReturn(false);
+        $model->shouldReceive('hasAttributeSetMutator')->andReturn(false);
+        $model->shouldReceive('hasCast')->andReturn(false);
+        $builder->setModel($model);
+
+        $result = $builder->incrementEach(['votes' => 5]);
+        $this->assertEquals(1, $result);
+    }
+
+    public function testDecrementEachCallsToBaseWithUpdatedAt()
+    {
+        $query = m::mock(BaseBuilder::class);
+        $query->shouldReceive('from')->with('foo_table');
+        $query->from = 'foo_table';
+        $query->shouldReceive('decrementEach')->once()->withArgs(function ($columns, $extra) {
+            return $columns === ['votes' => 3] && array_key_exists('foo_table.updated_at', $extra);
+        })->andReturn(1);
+
+        $builder = new Builder($query);
+        $model = $this->getMockModel();
+        $model->shouldReceive('usesTimestamps')->andReturn(true);
+        $model->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
+        $model->shouldReceive('freshTimestampString')->andReturn('2026-03-26 00:00:00');
+        $model->shouldReceive('hasSetMutator')->andReturn(false);
+        $model->shouldReceive('hasAttributeSetMutator')->andReturn(false);
+        $model->shouldReceive('hasCast')->andReturn(false);
+        $builder->setModel($model);
+
+        $result = $builder->decrementEach(['votes' => 3]);
+        $this->assertEquals(1, $result);
+    }
+
+    public function testIncrementEachWithoutTimestamps()
+    {
+        $query = m::mock(BaseBuilder::class);
+        $query->shouldReceive('from')->with('foo_table');
+        $query->shouldReceive('incrementEach')->once()->with(['votes' => 1], [])->andReturn(1);
+
+        $builder = new Builder($query);
+        $model = $this->getMockModel();
+        $model->shouldReceive('usesTimestamps')->andReturn(false);
+        $builder->setModel($model);
+
+        $result = $builder->incrementEach(['votes' => 1]);
+        $this->assertEquals(1, $result);
     }
 
     protected function getMockModel()
@@ -3167,4 +3268,14 @@ class EloquentBuilderTestWhereBelongsToStub extends Model
     {
         return $this->belongsTo(self::class, 'parent_id', 'id', 'parent');
     }
+}
+
+enum EloquentBuilderTestBackedEnum: string
+{
+    case Bar = 'bar';
+}
+
+enum EloquentBuilderTestUnitEnum
+{
+    case Baz;
 }

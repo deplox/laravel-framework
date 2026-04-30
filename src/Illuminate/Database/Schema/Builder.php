@@ -251,7 +251,7 @@ class Builder
      * Get the user-defined types that belong to the connection.
      *
      * @param  string|string[]|null  $schema
-     * @return list<array{name: string, schema: string, type: string, type: string, category: string, implicit: bool}>
+     * @return list<array{name: string, schema: string, schema_qualified_name: string, type: string, category: string, implicit: bool}>
      */
     public function getTypes($schema = null)
     {
@@ -363,6 +363,8 @@ class Builder
      * @param  string  $column
      * @param  bool  $fullDefinition
      * @return string
+     *
+     * @throws \InvalidArgumentException
      */
     public function getColumnType($table, $column, $fullDefinition = false)
     {
@@ -392,7 +394,7 @@ class Builder
      * Get the columns for a given table.
      *
      * @param  string  $table
-     * @return list<array{name: string, type: string, type_name: string, nullable: bool, default: mixed, auto_increment: bool, comment: string|null, generation: array{type: string, expression: string|null}|null}>
+     * @return list<array{name: string, type: string, type_name: string, collation: string|null, nullable: bool, default: mixed, auto_increment: bool, comment: string|null, generation: array{type: string, expression: string|null}|null}>
      */
     public function getColumns($table)
     {
@@ -467,7 +469,7 @@ class Builder
      * Get the foreign keys for a given table.
      *
      * @param  string  $table
-     * @return array
+     * @return list<array{name: string|null, columns: list<string>, foreign_schema: string|null, foreign_table: string, foreign_columns: list<string>, on_update: string|null, on_delete: string|null}>
      */
     public function getForeignKeys($table)
     {
@@ -660,6 +662,8 @@ class Builder
      * @param  string  $name
      * @param  string|null  $schema
      * @return void
+     *
+     * @throws \RuntimeException
      */
     public function ensureExtensionExists($name, $schema = null)
     {
@@ -730,6 +734,8 @@ class Builder
      * @param  string  $reference
      * @param  string|bool|null  $withDefaultSchema
      * @return array{string|null, string}
+     *
+     * @throws \InvalidArgumentException
      */
     public function parseSchemaAndTable($reference, $withDefaultSchema = null)
     {

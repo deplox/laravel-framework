@@ -30,13 +30,16 @@ class PendingEventAttributes
      * The expiration time of the underlying cache lock may be specified in minutes.
      *
      * @param  int  $expiresAt
+     * @param  bool  $releaseOnTerminationSignals
      * @return $this
      */
-    public function withoutOverlapping($expiresAt = 1440)
+    public function withoutOverlapping($expiresAt = 1440, $releaseOnTerminationSignals = true)
     {
         $this->withoutOverlapping = true;
 
         $this->expiresAt = $expiresAt;
+
+        $this->releaseOnTerminationSignals = $releaseOnTerminationSignals;
 
         return $this;
     }
@@ -69,8 +72,12 @@ class PendingEventAttributes
             $event->evenInMaintenanceMode();
         }
 
+        if ($this->evenWhenPaused) {
+            $event->evenWhenPaused();
+        }
+
         if ($this->withoutOverlapping) {
-            $event->withoutOverlapping($this->expiresAt);
+            $event->withoutOverlapping($this->expiresAt, $this->releaseOnTerminationSignals);
         }
 
         if ($this->onOneServer) {

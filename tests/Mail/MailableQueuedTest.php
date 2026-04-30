@@ -6,12 +6,12 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\View\Factory;
-use Illuminate\Filesystem\Filesystem;
 use Illuminate\Filesystem\FilesystemManager;
 use Illuminate\Foundation\Application;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailer;
 use Illuminate\Mail\SendQueuedMailable;
+use Illuminate\Queue\Attributes\Delay;
 use Illuminate\Support\Testing\Fakes\QueueFake;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
@@ -57,8 +57,6 @@ class MailableQueuedTest extends TestCase
     {
         $app = new Application;
         $container = Container::getInstance();
-        $this->getMockBuilder(Filesystem::class)
-            ->getMock();
         $filesystemFactory = $this->getMockBuilder(FilesystemManager::class)
             ->setConstructorArgs([$app])
             ->getMock();
@@ -147,6 +145,41 @@ class MailableQueuedTest extends TestCase
         $this->assertEquals($mockedDeduplicator, $pushedJob->deduplicator->getClosure());
     }
 
+    public function testQueuedMailableRespectsDelayAttribute(): void
+    {
+        $queueFake = new QueueFake(new Application);
+        $mailer = $this->getMockBuilder(Mailer::class)
+            ->setConstructorArgs($this->getMocks())
+            ->onlyMethods(['createMessage', 'to'])
+            ->getMock();
+        $mailer->setQueue($queueFake);
+        $mailable = new MailableQueueableStubWithDelayAttribute;
+        $queueFake->assertNothingPushed();
+        $mailer->send($mailable);
+        $queueFake->assertPushedOn(null, SendQueuedMailable::class);
+
+        $pushedJob = $queueFake->pushed(SendQueuedMailable::class)->first();
+        $this->assertEquals(30, $pushedJob->delay);
+    }
+
+    public function testQueuedMailableDelayPropertyOverridesAttribute(): void
+    {
+        $queueFake = new QueueFake(new Application);
+        $mailer = $this->getMockBuilder(Mailer::class)
+            ->setConstructorArgs($this->getMocks())
+            ->onlyMethods(['createMessage', 'to'])
+            ->getMock();
+        $mailer->setQueue($queueFake);
+        $mailable = new MailableQueueableStubWithDelayAttribute;
+        $mailable->delay = 60;
+        $queueFake->assertNothingPushed();
+        $mailer->send($mailable);
+        $queueFake->assertPushedOn(null, SendQueuedMailable::class);
+
+        $pushedJob = $queueFake->pushed(SendQueuedMailable::class)->first();
+        $this->assertEquals(60, $pushedJob->delay);
+    }
+
     public function testQueuedMailableForwardsDeduplicationIdMethodToQueueJob(): void
     {
         $queueFake = new QueueFake(new Application);
@@ -203,6 +236,22 @@ class MailableQueueableStubWithMessageGroup extends Mailable implements ShouldQu
     public function messageGroup(): string
     {
         return 'group-1';
+    }
+}
+
+#[Delay(30)]
+class MailableQueueableStubWithDelayAttribute extends Mailable implements ShouldQueue
+{
+    use Queueable;
+
+    public function build(): self
+    {
+        $this
+            ->subject('lorem ipsum')
+            ->html('foo bar baz')
+            ->to('foo@example.tld');
+
+        return $this;
     }
 }
 

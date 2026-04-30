@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - master
-      - '*.x'
+      - "*.x"
   pull_request:
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        client: ['phpredis', 'predis']
+        client: ["phpredis", "predis"]
 
     name: Redis (${{ matrix.client}}) Driver
 
@@ -32,16 +32,16 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: 8.2
+          php-version: 8.3
           extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_mysql, :php-psr
           tools: composer:v2
           coverage: none
 
       - name: Set Framework version
-        run: composer config version "12.x-dev"
+        run: composer config version "13.x-dev"
 
       - name: Install dependencies
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 5
           max_attempts: 5
@@ -67,7 +67,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        client: ['phpredis', 'predis']
+        client: ["phpredis", "predis"]
 
     name: Redis Cluster (${{ matrix.client}}) Driver
 
@@ -78,16 +78,16 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: 8.2
+          php-version: 8.3
           extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_mysql, :php-psr
           tools: composer:v2
           coverage: none
 
       - name: Set Framework version
-        run: composer config version "12.x-dev"
+        run: composer config version "13.x-dev"
 
       - name: Install dependencies
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 5
           max_attempts: 5
@@ -104,7 +104,7 @@ jobs:
           redis-cli --cluster create 127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 --cluster-replicas 0 --cluster-yes
 
       - name: Check Redis Cluster is ready
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_seconds: 5
           max_attempts: 5
@@ -129,6 +129,5 @@ jobs:
         env:
           REDIS_CLIENT: ${{ matrix.client }}
           REDIS_CLUSTER_HOSTS_AND_PORTS: 127.0.0.1:7000,127.0.0.1:7001,127.0.0.1:7002
-          REDIS_QUEUE: '{default}'
+          REDIS_QUEUE: "default"
           QUEUE_CONNECTION: redis
-
