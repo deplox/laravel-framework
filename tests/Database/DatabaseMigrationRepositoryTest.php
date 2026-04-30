@@ -56,8 +56,7 @@ class DatabaseMigrationRepositoryTest extends TestCase
         $query->shouldReceive('insert')->once()->with(m::on(function ($record) {
             return $record['migration'] === 'bar'
                 && $record['batch'] === 1
-                && isset($record['id'])
-                && isset($record['created_at']);
+                && isset($record['id'], $record['created_at']);
         }));
         $query->shouldReceive('useWritePdo')->once()->andReturn($query);
 
