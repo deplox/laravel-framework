@@ -13,6 +13,8 @@ use Illuminate\Foundation\Events\DiagnosingHealth;
 use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as AppEventServiceProvider;
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider as AppRouteServiceProvider;
+use Illuminate\Http\Middleware\PrefersJsonResponses;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
@@ -193,6 +195,8 @@ class ApplicationBuilder
      * @param  string  $apiPrefix
      * @param  callable|null  $then
      * @return \Closure
+     *
+     * @throws \Throwable
      */
     protected function buildRoutingCallback(array|string|null $web,
         array|string|null $api,
@@ -215,7 +219,7 @@ class ApplicationBuilder
             }
 
             if (is_string($health)) {
-                Route::get($health, function () {
+                Route::get($health, function (Request $request) {
                     $exception = null;
 
                     try {
@@ -230,9 +234,17 @@ class ApplicationBuilder
                         $exception = $e->getMessage();
                     }
 
+                    $status = $exception ? 500 : 200;
+
+                    if ($request->expectsJson()) {
+                        return response()->json([
+                            'status' => $exception ? 'down' : 'up',
+                        ], $status);
+                    }
+
                     return response(View::file(__DIR__.'/../resources/health-up.blade.php', [
                         'exception' => $exception,
-                    ]), status: $exception ? 500 : 200);
+                    ]), status: $status);
                 });
             }
 
@@ -360,7 +372,13 @@ class ApplicationBuilder
      */
     public function withSchedule(callable $callback)
     {
-        Artisan::starting(fn () => $callback($this->app->make(Schedule::class)));
+        Artisan::starting(function () use ($callback) {
+            $this->app->afterResolving(Schedule::class, fn ($schedule) => $callback($schedule));
+
+            if ($this->app->resolved(Schedule::class)) {
+                $callback($this->app->make(Schedule::class));
+            }
+        });
 
         return $this;
     }
@@ -439,6 +457,25 @@ class ApplicationBuilder
                 }
             }
         });
+    }
+
+    /**
+     * Globally prefer JSON responses when the incoming "Accept" header is broad.
+     *
+     * @param  bool  $prefer
+     * @return $this
+     */
+    public function prefersJsonResponses(bool $prefer = true)
+    {
+        if (! $prefer) {
+            return $this;
+        }
+
+        $this->app->booted(function () {
+            $this->app->make(HttpKernel::class)->prependMiddleware(PrefersJsonResponses::class);
+        });
+
+        return $this;
     }
 
     /**

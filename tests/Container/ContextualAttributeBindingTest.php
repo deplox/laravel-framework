@@ -100,7 +100,7 @@ class ContextualAttributeBindingTest extends TestCase
         $class = $container->make(ContainerTestHasConfigValueProperty::class);
 
         $this->assertInstanceOf(ContainerTestHasConfigValueProperty::class, $class);
-        $this->assertEquals('Europe/Paris', $class->timezone);
+        $this->assertSame('Europe/Paris', $class->timezone);
     }
 
     public function testScalarDependencyCanBeResolvedFromAttributeResolveMethod()
@@ -115,7 +115,7 @@ class ContextualAttributeBindingTest extends TestCase
         $class = $container->make(ContainerTestHasConfigValueWithResolveProperty::class);
 
         $this->assertInstanceOf(ContainerTestHasConfigValueWithResolveProperty::class, $class);
-        $this->assertEquals('production', $class->env);
+        $this->assertSame('production', $class->env);
     }
 
     public function testDependencyWithAfterCallbackAttributeCanBeResolved()
@@ -124,7 +124,7 @@ class ContextualAttributeBindingTest extends TestCase
 
         $class = $container->make(ContainerTestHasConfigValueWithResolvePropertyAndAfterCallback::class);
 
-        $this->assertEquals('Developer', $class->person->role);
+        $this->assertSame('Developer', $class->person->role);
     }
 
     public function testAuthedAttribute()
@@ -272,6 +272,8 @@ class ContextualAttributeBindingTest extends TestCase
             $manager = m::mock(FilesystemManager::class);
             $manager->shouldReceive('disk')->with('foo')->andReturn(m::mock(Filesystem::class));
             $manager->shouldReceive('disk')->with('bar')->andReturn(m::mock(Filesystem::class));
+            $manager->shouldReceive('disk')->with(StorageDiskUnitEnum::unit)->andReturn(m::mock(Filesystem::class));
+            $manager->shouldReceive('disk')->with(StorageDiskBackedEnum::Backed)->andReturn(m::mock(Filesystem::class));
 
             return $manager;
         });
@@ -287,7 +289,7 @@ class ContextualAttributeBindingTest extends TestCase
             return $hasAttribute->person;
         });
 
-        $this->assertEquals('Taylor', $person->name);
+        $this->assertSame('Taylor', $person->name);
     }
 
     public function testAttributeOnAppCall()
@@ -304,7 +306,7 @@ class ContextualAttributeBindingTest extends TestCase
             return $value;
         });
 
-        $this->assertEquals('Europe/Paris', $value);
+        $this->assertSame('Europe/Paris', $value);
 
         $value = $container->call(function (#[Config('app.locale')] ?string $value) {
             return $value;
@@ -327,7 +329,7 @@ class ContextualAttributeBindingTest extends TestCase
             return $object;
         });
 
-        $this->assertEquals('Europe/Paris', $value->timezone);
+        $this->assertSame('Europe/Paris', $value->timezone);
 
         $value = $container->call(function (LocaleObject $object) {
             return $object;
@@ -358,6 +360,16 @@ class ContainerTestAttributeThatResolvesContractImpl implements ContextualAttrib
         public readonly string $name
     ) {
     }
+}
+
+enum StorageDiskUnitEnum
+{
+    case unit;
+}
+
+enum StorageDiskBackedEnum: string
+{
+    case Backed = 'backed';
 }
 
 interface ContainerTestContract
@@ -530,8 +542,12 @@ final class RouteParameterTest
 
 final class StorageTest
 {
-    public function __construct(#[Storage('foo')] Filesystem $foo, #[Storage('bar')] Filesystem $bar)
-    {
+    public function __construct(
+        #[Storage('foo')] Filesystem $foo,
+        #[Storage('bar')] Filesystem $bar,
+        #[Storage(StorageDiskUnitEnum::unit)] Filesystem $unit,
+        #[Storage(StorageDiskBackedEnum::Backed)] Filesystem $backed,
+    ) {
     }
 }
 

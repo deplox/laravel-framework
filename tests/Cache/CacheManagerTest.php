@@ -12,26 +12,63 @@ use Illuminate\Events\Dispatcher as Event;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 class CacheManagerTest extends TestCase
 {
     public function testCustomDriverClosureBoundObjectIsCacheManager()
     {
-        $cacheManager = new CacheManager([
-            'config' => [
-                'cache.stores.'.__CLASS__ => [
-                    'driver' => __CLASS__,
+        $manager = new CacheManager($this->getApp([
+            'cache' => [
+                'stores' => [
+                    __CLASS__ => [
+                        'driver' => __CLASS__,
+                    ],
                 ],
             ],
-        ]);
-        $driver = function () {
-            return $this;
-        };
-        $cacheManager->extend(__CLASS__, $driver);
-        $this->assertEquals($cacheManager, $cacheManager->store(__CLASS__));
+        ]));
+        $manager->extend(__CLASS__, fn () => $this);
+        $this->assertSame($manager, $manager->store(__CLASS__));
     }
 
-    public function testCustomDriverOverridesInternalDrivers()
+    public function testCustomDriverStaticClosure()
+    {
+        $manager = new CacheManager($this->getApp([
+            'cache' => [
+                'stores' => [
+                    __CLASS__ => [
+                        'driver' => __CLASS__,
+                    ],
+                ],
+            ],
+        ]));
+
+        $driver = new stdClass;
+
+        $manager->extend(__CLASS__, static fn () => $driver);
+        $this->assertSame($driver, $manager->store(__CLASS__));
+    }
+
+    public function testInvokableObjectDriverClosure()
+    {
+        $manager = new CacheManager($this->getApp([
+            'cache' => [
+                'stores' => [
+                    __CLASS__ => [
+                        'driver' => __CLASS__,
+                    ],
+                ],
+            ],
+        ]));
+
+        $driver = new stdClass;
+        $creator = new CustomCacheDriver($driver);
+
+        $manager->extend(__CLASS__, $creator(...));
+        $this->assertSame($driver, $manager->store(__CLASS__));
+    }
+
+    public function test_custom_driver_overrides_internal_drivers()
     {
         $userConfig = [
             'cache' => [
@@ -153,7 +190,7 @@ class CacheManagerTest extends TestCase
 
         $cacheManager->setDefaultDriver('><((((@>');
 
-        $this->assertEquals('><((((@>', $app->get('config')->get('cache.default'));
+        $this->assertSame('><((((@>', $app->get('config')->get('cache.default'));
     }
 
     public function testItPurgesMemoizedStoreObjects()
@@ -314,6 +351,108 @@ class CacheManagerTest extends TestCase
         $this->assertNull($repoWithoutEvents->getEventDispatcher());
     }
 
+    public function testEnumStoreCanBeResolved()
+    {
+        $userConfig = [
+            'cache' => [
+                'stores' => [
+                    'array' => [
+                        'driver' => 'array',
+                    ],
+                ],
+            ],
+        ];
+
+        $app = $this->getApp($userConfig);
+        $cacheManager = new CacheManager($app);
+
+        $store = $cacheManager->store(CacheStoreName::ArrayStore);
+
+        $this->assertInstanceOf(ArrayStore::class, $store->getStore());
+        $this->assertSame($store, $cacheManager->store(CacheStoreName::ArrayStore));
+    }
+
+    public function testEnumDriverCanBeResolved()
+    {
+        $userConfig = [
+            'cache' => [
+                'stores' => [
+                    'array' => [
+                        'driver' => 'array',
+                    ],
+                ],
+            ],
+        ];
+
+        $app = $this->getApp($userConfig);
+        $cacheManager = new CacheManager($app);
+
+        $store = $cacheManager->driver(CacheStoreName::ArrayStore);
+
+        $this->assertInstanceOf(ArrayStore::class, $store->getStore());
+    }
+
+    public function testForgetDriverAcceptsEnum()
+    {
+        $userConfig = [
+            'cache' => [
+                'stores' => [
+                    'array' => [
+                        'driver' => 'array',
+                    ],
+                ],
+            ],
+        ];
+
+        $app = $this->getApp($userConfig);
+        $cacheManager = new CacheManager($app);
+
+        $repo1 = $cacheManager->store(CacheStoreName::ArrayStore);
+        $cacheManager->forgetDriver(CacheStoreName::ArrayStore);
+        $repo2 = $cacheManager->store(CacheStoreName::ArrayStore);
+
+        $this->assertNotSame($repo1, $repo2);
+    }
+
+    public function testPurgeAcceptsEnum()
+    {
+        $userConfig = [
+            'cache' => [
+                'stores' => [
+                    'array' => [
+                        'driver' => 'array',
+                    ],
+                ],
+            ],
+        ];
+
+        $app = $this->getApp($userConfig);
+        $cacheManager = new CacheManager($app);
+
+        $repo1 = $cacheManager->store(CacheStoreName::ArrayStore);
+        $cacheManager->purge(CacheStoreName::ArrayStore);
+        $repo2 = $cacheManager->store(CacheStoreName::ArrayStore);
+
+        $this->assertNotSame($repo1, $repo2);
+    }
+
+    public function testSetDefaultDriverAcceptsEnum()
+    {
+        $userConfig = [
+            'cache' => [
+                'default' => 'old',
+                'stores' => [],
+            ],
+        ];
+
+        $app = $this->getApp($userConfig);
+        $cacheManager = new CacheManager($app);
+
+        $cacheManager->setDefaultDriver(CacheStoreName::ArrayStore);
+
+        $this->assertSame('array', $app->get('config')->get('cache.default'));
+    }
+
     protected function getApp(array $userConfig)
     {
         $app = new Container;
@@ -321,4 +460,21 @@ class CacheManagerTest extends TestCase
 
         return $app;
     }
+}
+
+class CustomCacheDriver
+{
+    public function __construct(private object $driver)
+    {
+    }
+
+    public function __invoke()
+    {
+        return $this->driver;
+    }
+}
+
+enum CacheStoreName: string
+{
+    case ArrayStore = 'array';
 }
