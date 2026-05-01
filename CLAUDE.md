@@ -4,19 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an **opinionated fork** of the Laravel Framework core repository, based on v12.x. It is NOT upstream Laravel — it layers ~14 custom commits with intentional divergences from official Laravel conventions. This is also NOT a Laravel application; it is the framework itself, distributed as a monorepo where individual Illuminate components are split into separate Composer packages.
+This is an **opinionated fork** of the Laravel Framework core repository, based on v13.x. It is NOT upstream Laravel — it layers ~14 custom commits with intentional divergences from official Laravel conventions. This is also NOT a Laravel application; it is the framework itself, distributed as a monorepo where individual Illuminate components are split into separate Composer packages.
 
 ### Git Workflow
 
 - **GitButler** manages all branching and version control for this project
 - Working branch: `gitbutler/workspace` (always; never switch away)
-- Upstream base: `12.x`
+- Upstream base: `13.x`
 - Do NOT make commits, push, create branches, or perform other git operations — GitButler handles all version control
 - Do not rebase onto or merge from upstream without explicit instruction
 
 ## Fork-Specific Changes
 
-These are the key differences from upstream Laravel 12.x. Be aware of these when working in the codebase — standard Laravel documentation may not apply in these areas.
+These are the key differences from upstream Laravel 13.x. Be aware of these when working in the codebase — standard Laravel documentation may not apply in these areas.
 
 **ID Strategy**: ULID primary keys are the default in migration stubs (`$table->ulid('id')->primary()` instead of `$table->id()`). Session IDs also use ULIDs.
 
@@ -127,7 +127,7 @@ PSR-4 namespaces: `Illuminate\` maps to `src/Illuminate/`. Some Support subnames
 
 ## Code Style
 
-- PHP 8.2+ required; code must be compatible with 8.2 through 8.5
+- PHP 8.3+ required; code must be compatible with 8.3 through 8.5
 - Formatting enforced by Laravel Pint (config in `pint.json`); uses an `empty` preset with explicit rules
 - Single quotes, short array syntax `[]`, `post` increment style (`$i++`)
 - Opening braces on next line for classes/functions (unless signature ends with newline), same line for control structures
@@ -142,7 +142,7 @@ PSR-4 namespaces: `Illuminate\` maps to `src/Illuminate/`. Some Support subnames
 - PHPUnit config: `phpunit.xml.dist` with 2048M memory limit, UTC timezone
 - DB connection defaults to `testing` (SQLite in-memory) for unit tests
 - CI services: MySQL 8, Redis 7.0, Memcached 1.6, DynamoDB Local for integration tests
-- CI matrix: PHP 8.2-8.5, PHPUnit 10.5/11.5/12.x, both prefer-lowest and prefer-stable
+- CI matrix: PHP 8.3-8.5, PHPUnit 10.5/11.5/12.x, both prefer-lowest and prefer-stable
 - CI uses `--fail-on-deprecation` for prefer-stable runs; deprecation warnings must be resolved
 - Tests also run on Windows (windows-2022) to ensure cross-platform compatibility
 
