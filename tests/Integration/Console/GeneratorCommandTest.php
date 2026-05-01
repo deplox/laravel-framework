@@ -11,7 +11,7 @@ class GeneratorCommandTest extends TestCase
     use InteractsWithPublishedFiles;
 
     protected $files = [
-        'app/Console/Commands/FooCommand.php',
+        'app/Commands/FooCommand.php',
         'resources/views/foo/php.blade.php',
         'tests/Feature/fixtures.php/SomeTest.php',
     ];
@@ -21,11 +21,11 @@ class GeneratorCommandTest extends TestCase
         $this->artisan('make:command', ['name' => 'FooCommand.php'])
             ->assertExitCode(0);
 
-        $this->assertFilenameExists('app/Console/Commands/FooCommand.php');
+        $this->assertFilenameExists('app/Commands/FooCommand.php');
 
         $this->assertFileContains([
             'class FooCommand extends Command',
-        ], 'app/Console/Commands/FooCommand.php');
+        ], 'app/Commands/FooCommand.php');
     }
 
     public function testItChopsPhpExtensionFromMakeViewCommands(): void
