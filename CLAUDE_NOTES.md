@@ -4,7 +4,7 @@ Analysis and Overview
 ---------------------
 
 
- Here's my assessment of this fork's changes versus official Laravel 12.x:
+ Here's my assessment of this fork's changes versus official Laravel 13.x:
 
   The Good
 
@@ -49,7 +49,7 @@ Suggestions and Plan
 
  Overview
 
- This fork layers ~14 custom commits on top of the official Laravel 12.x branch. The changes represent an opinionated rearchitecture of Laravel's conventions. Below is my assessment
+ This fork layers ~14 custom commits on top of the official Laravel 13.x branch (synced from upstream 12.x and 13.x; see merge commits 506997fa6a and 23fa75e9b7). The changes represent an opinionated rearchitecture of Laravel's conventions. Below is my assessment
  organized by theme.
 
  ---
