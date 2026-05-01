@@ -38,7 +38,7 @@ class PaginatorResourceTest extends TestCase
             new PaginatorResourceTestModel(),
         ], 1, 1, 1);
 
-        class_alias(PaginatorResourceTestResource::class, 'Illuminate\Tests\Pagination\Fixtures\Http\Resources\PaginatorResourceTestModelResource');
+        class_alias(PaginatorResourceTestResource::class, 'Illuminate\Tests\Pagination\Fixtures\Resources\PaginatorResourceTestModelResource');
 
         $resource = $paginator->toResourceCollection();
 

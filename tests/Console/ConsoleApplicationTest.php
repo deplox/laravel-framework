@@ -259,22 +259,22 @@ class ConsoleApplicationTest extends TestCase
     {
         $files = new Filesystem;
 
-        $files->ensureDirectoryExists(join_paths(default_skeleton_path(), 'app', 'Console', 'Commands'), 0755, true);
+        $files->ensureDirectoryExists(join_paths(default_skeleton_path(), 'app', 'Commands'), 0755, true);
 
         try {
             $files->put(
-                join_paths(default_skeleton_path(), 'app', 'Console', 'Commands', 'ExampleCommand.php'),
-                '<?php namespace App\Console\Commands; class ExampleCommand extends \Illuminate\Console\Command { protected $signature = "example"; public function handle() {} }'
+                join_paths(default_skeleton_path(), 'app', 'Commands', 'ExampleCommand.php'),
+                '<?php namespace App\Commands; class ExampleCommand extends \Illuminate\Console\Command { protected $signature = "example"; public function handle() {} }'
             );
 
             $files->put(
-                join_paths(default_skeleton_path(), 'app', 'Console', 'Commands', 'ExampleCommandTest.php'),
-                '<?php namespace App\Console\Commands; class ExampleCommandTest extends \Illuminate\Console\Command { protected $signature = "example-test"; public function handle() {} }'
+                join_paths(default_skeleton_path(), 'app', 'Commands', 'ExampleCommandTest.php'),
+                '<?php namespace App\Commands; class ExampleCommandTest extends \Illuminate\Console\Command { protected $signature = "example-test"; public function handle() {} }'
             );
 
             $files->put(
-                join_paths(default_skeleton_path(), 'app', 'Console', 'Commands', 'ExampleCommandUnitTest.php'),
-                '<?php namespace App\Console\Commands; class ExampleCommandUnitTest extends \PHPUnit\Framework\TestCase { public function test_command() { $this->assertTrue(true); } }'
+                join_paths(default_skeleton_path(), 'app', 'Commands', 'ExampleCommandUnitTest.php'),
+                '<?php namespace App\Commands; class ExampleCommandUnitTest extends \PHPUnit\Framework\TestCase { public function test_command() { $this->assertTrue(true); } }'
             );
 
             foreach (ClassLoader::getRegisteredLoaders() as $loader) {
@@ -289,13 +289,13 @@ class ConsoleApplicationTest extends TestCase
 
             $commands = $kernel->getRegisteredCommands();
 
-            $this->assertContains('App\Console\Commands\ExampleCommand', $commands);
-            $this->assertContains('App\Console\Commands\ExampleCommandTest', $commands);
-            $this->assertNotContains('App\Console\Commands\ExampleCommandUnitTest', $commands);
+            $this->assertContains('App\Commands\ExampleCommand', $commands);
+            $this->assertContains('App\Commands\ExampleCommandTest', $commands);
+            $this->assertNotContains('App\Commands\ExampleCommandUnitTest', $commands);
 
             Testbench::flushState($this);
         } finally {
-            $files->cleanDirectory(default_skeleton_path('app', 'Console', 'Commands'));
+            $files->cleanDirectory(default_skeleton_path('app', 'Commands'));
         }
     }
 

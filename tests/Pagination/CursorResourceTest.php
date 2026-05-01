@@ -38,7 +38,7 @@ class CursorResourceTest extends TestCase
             new CursorResourceTestModel(),
         ], 1);
 
-        class_alias(CursorResourceTestResource::class, 'Illuminate\Tests\Pagination\Fixtures\Http\Resources\CursorResourceTestModelResource');
+        class_alias(CursorResourceTestResource::class, 'Illuminate\Tests\Pagination\Fixtures\Resources\CursorResourceTestModelResource');
 
         $resource = $paginator->toResourceCollection();
 
