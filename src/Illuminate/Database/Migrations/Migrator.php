@@ -410,6 +410,16 @@ class Migrator
 
         $name = $this->getMigrationName($file);
 
+        // Forward-only migrations (no down() method) are a deliberate default in
+        // this fork. Treat rollback as a skip rather than silently no-opping the
+        // schema change while still removing the repository record — that would
+        // leave the database state and the migrations table out of sync.
+        if (! method_exists($instance, 'down')) {
+            $this->write(Task::class, $name, fn () => MigrationResult::Skipped->value);
+
+            return;
+        }
+
         if ($pretend) {
             return $this->pretendToRun($instance, 'down');
         }

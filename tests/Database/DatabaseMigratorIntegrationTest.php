@@ -192,6 +192,23 @@ class DatabaseMigratorIntegrationTest extends TestCase
         $this->migrator->run([__DIR__.'/migrations/one']);
     }
 
+    public function testForwardOnlyMigrationsAreSkippedOnRollback()
+    {
+        $this->migrator->run([__DIR__.'/migrations/forward_only']);
+        $this->assertTrue($this->db::schema()->hasTable('widgets'));
+
+        $this->migrator->rollback([__DIR__.'/migrations/forward_only']);
+
+        // Schema must remain because the migration has no down() method,
+        // and the migrations table must still record it — otherwise a
+        // subsequent migrate would re-run the up() and fail.
+        $this->assertTrue($this->db::schema()->hasTable('widgets'));
+        $this->assertSame(
+            ['1700000000_create_widgets_table'],
+            $this->migrator->getRepository()->getRan(),
+        );
+    }
+
     public function testNoErrorIsThrownWhenNothingToRollback()
     {
         $this->migrator->run([__DIR__.'/migrations/one']);

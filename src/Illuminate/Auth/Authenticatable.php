@@ -5,14 +5,16 @@ namespace Illuminate\Auth;
 trait Authenticatable
 {
     /**
-     * The column name of the email field.
+     * The column name of the email field. Cannot be null — to opt out of
+     * email-based auth, write a custom user provider.
      *
      * @var string
      */
     const EMAIL = 'email';
 
     /**
-     * The column name of the password field using during authentication.
+     * The column name of the password field used during authentication.
+     * Cannot be null — to opt out of password auth, use a different guard.
      *
      * @var string
      */

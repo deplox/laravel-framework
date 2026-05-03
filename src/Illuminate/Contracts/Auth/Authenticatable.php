@@ -19,11 +19,25 @@ interface Authenticatable
     public function getAuthIdentifier();
 
     /**
+     * Get the unique broadcast identifier for the user.
+     *
+     * @return mixed
+     */
+    public function getAuthIdentifierForBroadcasting();
+
+    /**
      * Get the name of the password attribute for the user.
      *
      * @return string
      */
     public function getAuthPasswordName();
+
+    /**
+     * Get the name of the email attribute for the user.
+     *
+     * @return string
+     */
+    public function getEmailName();
 
     /**
      * Get the password for the user.
