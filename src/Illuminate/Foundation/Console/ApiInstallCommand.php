@@ -127,7 +127,7 @@ class ApiInstallCommand extends Command
         ]);
 
         $migrationPublished = (new Collection(scandir($this->laravel->databasePath('migrations'))))->contains(function ($migration) {
-            return preg_match('/\d{4}_\d{2}_\d{2}_\d{6}_create_personal_access_tokens_table.php/', $migration);
+            return preg_match('/(\d{4}_\d{2}_\d{2}_\d{6}_|\d{10,}_)create_personal_access_tokens_table\.php$/', $migration);
         });
 
         if (! $migrationPublished) {

@@ -21,6 +21,10 @@ trait MustVerifyEmail
      */
     public function hasVerifiedEmail()
     {
+        if (is_null($this->getVerifiedAtName())) {
+            return true;
+        }
+
         return ! is_null($this->{$this->getVerifiedAtName()});
     }
 
@@ -31,6 +35,10 @@ trait MustVerifyEmail
      */
     public function markEmailAsVerified()
     {
+        if (is_null($this->getVerifiedAtName())) {
+            return true;
+        }
+
         return $this->forceFill([
             $this->getVerifiedAtName() => $this->freshTimestamp(),
         ])->save();
@@ -43,6 +51,10 @@ trait MustVerifyEmail
      */
     public function markEmailAsUnverified()
     {
+        if (is_null($this->getVerifiedAtName())) {
+            return true;
+        }
+
         return $this->forceFill([
             $this->getVerifiedAtName() => null,
         ])->save();
@@ -55,6 +67,10 @@ trait MustVerifyEmail
      */
     public function sendEmailVerificationNotification()
     {
+        if (is_null($this->getVerifiedAtName())) {
+            return;
+        }
+
         Notification::send($this, new VerifyEmail);
     }
 
