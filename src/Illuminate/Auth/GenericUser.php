@@ -14,14 +14,16 @@ class GenericUser implements UserContract
     const AUTH_IDENTIFIER = 'id';
 
     /**
-     * The column name of the email field.
+     * The column name of the email field. Cannot be null — to opt out of
+     * email-based auth, write a custom user provider.
      *
      * @var string
      */
     const EMAIL = 'email';
 
     /**
-     * The column name of the password field.
+     * The column name of the password field. Cannot be null — to opt out
+     * of password auth, use a different guard.
      *
      * @var string
      */
@@ -72,6 +74,16 @@ class GenericUser implements UserContract
     }
 
     /**
+     * Get the unique broadcast identifier for the user.
+     *
+     * @return mixed
+     */
+    public function getAuthIdentifierForBroadcasting()
+    {
+        return $this->getAuthIdentifier();
+    }
+
+    /**
      * Get the name of the password attribute for the user.
      *
      * @return string
@@ -79,6 +91,16 @@ class GenericUser implements UserContract
     public function getAuthPasswordName()
     {
         return static::AUTH_PASSWORD;
+    }
+
+    /**
+     * Get the name of the email attribute for the user.
+     *
+     * @return string
+     */
+    public function getEmailName()
+    {
+        return static::EMAIL;
     }
 
     /**

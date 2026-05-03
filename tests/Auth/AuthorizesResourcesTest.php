@@ -12,6 +12,17 @@ use PHPUnit\Framework\TestCase;
 
 class AuthorizesResourcesTest extends TestCase
 {
+    public function testIndexMethod()
+    {
+        $controller = new AuthorizesResourcesController;
+
+        $this->assertHasMiddleware($controller, 'index', 'can:list,App\User');
+
+        $controller = new AuthorizesResourcesWithArrayController;
+
+        $this->assertHasMiddleware($controller, 'index', 'can:list,App\User,App\Post');
+    }
+
     public function testCreateMethod()
     {
         $controller = new AuthorizesResourcesController;
