@@ -8,6 +8,10 @@
 <a href="https://insights.linuxfoundation.org/project/laravel-framework"><img src="https://insights.linuxfoundation.org/api/badge/health-score?project=laravel-framework" alt="Health score"></a>
 </p>
 
+## Opinionated Fork
+
+> **This is [`deplox/laravel-framework`](https://github.com/deplox/laravel-framework), an opinionated fork of the official Laravel framework.** It stays in sync with upstream `laravel/framework` and layers a set of curated conventions on top: flattened `App\` namespaces, ULID primary keys throughout, forward-only migrations (no generated `down()`), configurable auth column constants, and more. See **[OPINIONATED.md](OPINIONATED.md)** for the complete list of divergences, how each one affects your application, and a migration checklist for switching an existing project onto this fork.
+
 ## About Laravel
 
 > **Note:** This repository contains the core code of the Laravel framework. If you want to build an application using Laravel, visit the main [Laravel repository](https://github.com/laravel/laravel).
