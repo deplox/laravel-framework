@@ -9,7 +9,7 @@ use {{ namespacedUserModel }};
 class {{ class }}
 {
     /**
-     * Determine whether the user can view any models.
+     * Determine whether the user can list models.
      */
     public function list({{ user }} $user): bool
     {
