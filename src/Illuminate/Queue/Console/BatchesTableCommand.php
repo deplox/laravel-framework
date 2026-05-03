@@ -63,15 +63,8 @@ class BatchesTableCommand extends MigrationGeneratorCommand
             return parent::migrationExists($table);
         }
 
-        foreach ([
-            join_paths($this->laravel->databasePath('migrations'), '*_create_'.$table.'_table.php'),
-            join_paths($this->laravel->databasePath('migrations'), '0000000001_create_jobs_table.php'),
-        ] as $path) {
-            if (count($this->files->glob($path)) !== 0) {
-                return true;
-            }
-        }
+        $path = join_paths($this->laravel->databasePath('migrations'), '*_create_'.$table.'_table.php');
 
-        return false;
+        return count($this->files->glob($path)) !== 0;
     }
 }
