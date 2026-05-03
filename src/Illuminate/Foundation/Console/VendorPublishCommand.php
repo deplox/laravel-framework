@@ -362,7 +362,7 @@ class VendorPublishCommand extends Command
 
                 return preg_replace(
                     '/(\d{4}_(\d{2})_(\d{2})_(\d{6})_|\d{10,}_)/',
-                    $this->publishedAt->format('Y_m_d_His').'_',
+                    ((string) $this->publishedAt->getTimestamp()).'_',
                     $to,
                 );
             }
