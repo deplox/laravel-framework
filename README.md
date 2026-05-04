@@ -8,6 +8,10 @@
 <a href="https://insights.linuxfoundation.org/project/laravel-framework"><img src="https://insights.linuxfoundation.org/api/badge/health-score?project=laravel-framework" alt="Health score"></a>
 </p>
 
+## Development Fork
+
+> **This is [`deplox/laravel-framework`](https://github.com/deplox/laravel-framework) — the `13.x-development` branch**, a staging area tracking upstream `laravel/framework`. It is not intended for production use. See the [`13.x-opinionated`](https://github.com/deplox/laravel-framework/tree/13.x-opinionated) branch for the stable opinionated fork.
+
 ## About Laravel
 
 > **Note:** This repository contains the core code of the Laravel framework. If you want to build an application using Laravel, visit the main [Laravel repository](https://github.com/laravel/laravel).
