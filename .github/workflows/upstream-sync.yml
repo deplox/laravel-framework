@@ -1,0 +1,251 @@
+name: Upstream sync
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Upstream tag to sync (e.g. v13.7.0). Leave empty to auto-pick the oldest missing.'
+        required: false
+        type: string
+      branch:
+        description: 'Restrict to a single branch (optional).'
+        required: false
+        type: choice
+        default: ''
+        options:
+          - ''
+          - '13.x'
+          - '13.x-development'
+          - '13.x-opinionated'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: upstream-sync-${{ matrix.branch }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - branch: '13.x'
+            suffix: ''
+            strategy: 'mirror'
+          - branch: '13.x-development'
+            suffix: '-development'
+            strategy: 'merge'
+          - branch: '13.x-opinionated'
+            suffix: '-opinionated'
+            strategy: 'merge'
+
+    steps:
+      - name: Skip if branch filter excludes this row
+        if: ${{ github.event.inputs.branch != '' && github.event.inputs.branch != matrix.branch }}
+        run: echo "Filtered out by workflow_dispatch input." && exit 0
+
+      - name: Checkout target branch
+        if: ${{ github.event.inputs.branch == '' || github.event.inputs.branch == matrix.branch }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+          fetch-depth: 0
+          token: ${{ secrets.FORK_PAT }}
+
+      - name: Configure git identity
+        if: ${{ github.event.inputs.branch == '' || github.event.inputs.branch == matrix.branch }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Fetch upstream
+        if: ${{ github.event.inputs.branch == '' || github.event.inputs.branch == matrix.branch }}
+        run: |
+          git remote add upstream https://github.com/laravel/framework.git
+          git fetch upstream 13.x --tags --no-recurse-submodules --prune
+
+      - name: Pick upstream tag to sync
+        id: pick
+        if: ${{ github.event.inputs.branch == '' || github.event.inputs.branch == matrix.branch }}
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          SUFFIX: ${{ matrix.suffix }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_TAG}" ]; then
+            TAG="${INPUT_TAG}"
+          else
+            TAG=""
+            while IFS= read -r t; do
+              [ -z "$t" ] && continue
+              if ! git rev-parse -q --verify "refs/tags/${t}${SUFFIX}" >/dev/null 2>&1; then
+                TAG="$t"
+                break
+              fi
+            done < <(git tag -l 'v13.*' --sort=v:refname | grep -Ev -- '-(rc|beta|alpha|dev|RC)' || true)
+          fi
+
+          if [ -z "$TAG" ]; then
+            echo "Nothing to sync."
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "::error::Tag ${TAG} not found on upstream."
+            exit 1
+          fi
+
+          FORK_TAG="${TAG}${SUFFIX}"
+          if git rev-parse -q --verify "refs/tags/${FORK_TAG}" >/dev/null 2>&1; then
+            echo "Fork tag ${FORK_TAG} already exists; nothing to do."
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "fork_tag=${FORK_TAG}" >> "$GITHUB_OUTPUT"
+          echo "sync_branch=sync/upstream-${TAG}-into-${{ matrix.branch }}" >> "$GITHUB_OUTPUT"
+
+      # ---------- Mirror branch path (no PR; direct fast-forward + tag) ----------
+
+      - name: Mirror — fast-forward, push branch, tag, release
+        id: mirror
+        if: ${{ matrix.strategy == 'mirror' && steps.pick.outputs.tag != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.FORK_PAT }}
+          BRANCH: ${{ matrix.branch }}
+          TAG: ${{ steps.pick.outputs.tag }}
+          FORK_TAG: ${{ steps.pick.outputs.fork_tag }}
+        run: |
+          set -euo pipefail
+
+          if ! git merge-base --is-ancestor HEAD "$TAG"; then
+            echo "::error::Mirror branch $BRANCH has diverged from upstream; cannot fast-forward to $TAG."
+            echo "Investigate with: git log origin/$BRANCH ^$TAG"
+            exit 1
+          fi
+
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse "$TAG")" ]; then
+            echo "Mirror branch already at $TAG; only tagging is needed."
+          else
+            git merge --ff-only "$TAG"
+            git push origin "HEAD:$BRANCH"
+          fi
+
+          git tag -a "$FORK_TAG" -m "Release $FORK_TAG (upstream $TAG)"
+          git push origin "refs/tags/$FORK_TAG"
+
+          BODY=$(cat <<EOF
+          Mirror of upstream **$TAG** (SHA-identical).
+
+          - Upstream changelog: https://github.com/laravel/framework/releases/tag/$TAG
+          - Fork branch: \`$BRANCH\`
+
+          Pin in your consumer \`composer.json\`:
+
+          \`\`\`json
+          "require": {
+              "laravel/framework": "$FORK_TAG"
+          }
+          \`\`\`
+          EOF
+          )
+
+          gh release create "$FORK_TAG" \
+            --target "$BRANCH" \
+            --title "$FORK_TAG" \
+            --notes "$BODY"
+
+      # ---------- Divergent branches path (PR + auto-merge on CI green) ----------
+
+      - name: Skip if sync branch already exists on origin
+        id: existing
+        if: ${{ matrix.strategy == 'merge' && steps.pick.outputs.tag != '' }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "${{ steps.pick.outputs.sync_branch }}" >/dev/null 2>&1; then
+            echo "Sync branch already exists on origin; skipping."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge upstream tag
+        id: merge
+        if: ${{ matrix.strategy == 'merge' && steps.pick.outputs.tag != '' && steps.existing.outputs.exists == 'false' }}
+        env:
+          TAG: ${{ steps.pick.outputs.tag }}
+          FORK_TAG: ${{ steps.pick.outputs.fork_tag }}
+          SYNC_BRANCH: ${{ steps.pick.outputs.sync_branch }}
+        run: |
+          set -euo pipefail
+          git checkout -b "$SYNC_BRANCH"
+
+          MSG=$(printf 'merge: upstream %s into %s\n\nUPSTREAM_TAG=%s\nFORK_TAG=%s\n' \
+            "$TAG" "${{ matrix.branch }}" "$TAG" "$FORK_TAG")
+
+          set +e
+          git merge --no-ff -m "$MSG" "$TAG"
+          RC=$?
+          set -e
+          if [ "$RC" -ne 0 ]; then
+            git add -A
+            git commit --allow-empty -m "$MSG" -m "WIP: conflicts pending manual resolution"
+          fi
+          echo "rc=$RC" >> "$GITHUB_OUTPUT"
+
+          git push origin "$SYNC_BRANCH"
+
+      - name: Ensure labels exist
+        if: ${{ matrix.strategy == 'merge' && steps.pick.outputs.tag != '' && steps.existing.outputs.exists == 'false' }}
+        env:
+          GH_TOKEN: ${{ secrets.FORK_PAT }}
+        run: |
+          gh label create ready-to-merge --color 0E8A16 --description 'Sync PR with clean merge; review and merge once CI is green' --force
+          gh label create conflicts      --color B60205 --description 'Sync PR with conflicts; needs manual resolution'         --force
+          gh label create upstream-sync  --color 1D76DB --description 'Automated upstream sync'                                 --force
+
+      - name: Open pull request
+        if: ${{ matrix.strategy == 'merge' && steps.pick.outputs.tag != '' && steps.existing.outputs.exists == 'false' }}
+        env:
+          GH_TOKEN: ${{ secrets.FORK_PAT }}
+          TAG: ${{ steps.pick.outputs.tag }}
+          FORK_TAG: ${{ steps.pick.outputs.fork_tag }}
+          SYNC_BRANCH: ${{ steps.pick.outputs.sync_branch }}
+          MERGE_RC: ${{ steps.merge.outputs.rc }}
+        run: |
+          set -euo pipefail
+          if [ "$MERGE_RC" = "0" ]; then
+            STATUS_LABEL="ready-to-merge"
+            STATUS_LINE="Merge was clean. Review and merge with **Create a merge commit** once CI is green."
+          else
+            STATUS_LABEL="conflicts"
+            STATUS_LINE=":warning: Merge had conflicts. Resolve them on this branch and push before merging."
+          fi
+
+          BODY=$(cat <<EOF
+          Automated upstream sync.
+
+          - Upstream tag: \`$TAG\` ([release notes](https://github.com/laravel/framework/releases/tag/$TAG))
+          - Fork tag on merge: \`$FORK_TAG\`
+          - Target branch: \`${{ matrix.branch }}\`
+
+          $STATUS_LINE
+
+          The merge commit body contains \`UPSTREAM_TAG=$TAG\` and \`FORK_TAG=$FORK_TAG\` markers consumed by \`upstream-release.yml\`. Do not squash-merge — squashing rewrites the body and prevents tagging.
+          EOF
+          )
+
+          gh pr create \
+            --base "${{ matrix.branch }}" \
+            --head "$SYNC_BRANCH" \
+            --title "Sync upstream $TAG into ${{ matrix.branch }}" \
+            --body "$BODY" \
+            --label "$STATUS_LABEL" \
+            --label upstream-sync

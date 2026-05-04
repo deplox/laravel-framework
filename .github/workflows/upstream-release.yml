@@ -1,0 +1,200 @@
+name: Upstream release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - 13.x
+      - 13.x-development
+      - 13.x-opinionated
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Target branch (must already contain the merged sync commit).'
+        required: true
+        type: choice
+        options:
+          - '13.x'
+          - '13.x-development'
+          - '13.x-opinionated'
+      upstream_tag:
+        description: 'Upstream tag (e.g. v13.7.0).'
+        required: true
+        type: string
+      fork_tag:
+        description: 'Fork tag to create (e.g. v13.7.0-opinionated). Must match the branch suffix.'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       !contains(github.event.pull_request.labels.*.name, 'conflicts'))
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Resolve target branch
+        id: target
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          INPUT_BRANCH: ${{ github.event.inputs.branch }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            BRANCH="$INPUT_BRANCH"
+          else
+            BRANCH="$PR_BASE"
+          fi
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.branch }}
+          fetch-depth: 0
+          token: ${{ secrets.FORK_PAT }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Extract upstream + fork tag
+        id: meta
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_UP: ${{ github.event.inputs.upstream_tag }}
+          INPUT_FORK: ${{ github.event.inputs.fork_tag }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            UP="$INPUT_UP"
+            FT="$INPUT_FORK"
+          else
+            # Scan recent commits for the markers. GitHub's "Create a merge commit" merge
+            # style adds a wrapper merge commit on top, leaving our sync merge at HEAD^2;
+            # rebase-merge preserves it as-is. Walking the last 10 commits handles both.
+            UP=""
+            FT=""
+            for sha in $(git log -10 --format=%H); do
+              MSG=$(git log -1 --format=%B "$sha")
+              UP_TRY=$(printf '%s' "$MSG" | grep -oE 'UPSTREAM_TAG=v13\.[0-9]+\.[0-9]+' | head -1 | cut -d= -f2 || true)
+              FT_TRY=$(printf '%s' "$MSG" | grep -oE 'FORK_TAG=v13\.[0-9]+\.[0-9]+(-[a-z]+)?' | head -1 | cut -d= -f2 || true)
+              if [ -n "$UP_TRY" ] && [ -n "$FT_TRY" ]; then
+                UP="$UP_TRY"
+                FT="$FT_TRY"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "${UP:-}" ] || [ -z "${FT:-}" ]; then
+            echo "::notice::No UPSTREAM_TAG/FORK_TAG markers in merge commit; skipping release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "upstream=$UP"  >> "$GITHUB_OUTPUT"
+          echo "fork=$FT"      >> "$GITHUB_OUTPUT"
+          echo "numeric=${FT#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate fork tag matches branch suffix
+        if: ${{ steps.meta.outputs.skip == 'false' }}
+        env:
+          BRANCH: ${{ steps.target.outputs.branch }}
+          FT: ${{ steps.meta.outputs.fork }}
+          UP: ${{ steps.meta.outputs.upstream }}
+        run: |
+          set -euo pipefail
+          case "$BRANCH" in
+            13.x)               EXPECTED="$UP" ;;
+            13.x-development)   EXPECTED="${UP}-development" ;;
+            13.x-opinionated)   EXPECTED="${UP}-opinionated" ;;
+            *)
+              echo "::error::Unknown branch $BRANCH"
+              exit 1 ;;
+          esac
+          if [ "$FT" != "$EXPECTED" ]; then
+            echo "::error::Fork tag $FT does not match expected $EXPECTED for branch $BRANCH."
+            exit 1
+          fi
+
+      - name: Refuse to retag
+        if: ${{ steps.meta.outputs.skip == 'false' }}
+        env:
+          FT: ${{ steps.meta.outputs.fork }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/$FT" >/dev/null 2>&1; then
+            echo "::error::Tag $FT already exists locally."
+            exit 1
+          fi
+          git fetch origin --tags --no-recurse-submodules --prune
+          if git rev-parse -q --verify "refs/tags/$FT" >/dev/null 2>&1; then
+            echo "::error::Tag $FT already exists on origin."
+            exit 1
+          fi
+
+      - name: Bump Application::VERSION (divergent branches only)
+        if: ${{ steps.meta.outputs.skip == 'false' && steps.target.outputs.branch != '13.x' }}
+        env:
+          BRANCH: ${{ steps.target.outputs.branch }}
+          NUMERIC: ${{ steps.meta.outputs.numeric }}
+        run: |
+          set -euo pipefail
+          FILE="src/Illuminate/Foundation/Application.php"
+          sed -i -E "s/const VERSION = '[^']+';/const VERSION = '${NUMERIC}';/" "$FILE"
+          if git diff --quiet -- "$FILE"; then
+            echo "VERSION already at ${NUMERIC}; nothing to commit."
+          else
+            git add "$FILE"
+            git commit -m "chore: bump Application::VERSION to ${NUMERIC}"
+            git push origin "$BRANCH"
+          fi
+
+      - name: Tag and push
+        if: ${{ steps.meta.outputs.skip == 'false' }}
+        env:
+          FT: ${{ steps.meta.outputs.fork }}
+          UP: ${{ steps.meta.outputs.upstream }}
+        run: |
+          set -euo pipefail
+          git tag -a "$FT" -m "Release $FT (upstream $UP)"
+          git push origin "refs/tags/$FT"
+
+      - name: Create GitHub Release
+        if: ${{ steps.meta.outputs.skip == 'false' }}
+        env:
+          GH_TOKEN: ${{ secrets.FORK_PAT }}
+          FT: ${{ steps.meta.outputs.fork }}
+          UP: ${{ steps.meta.outputs.upstream }}
+          BRANCH: ${{ steps.target.outputs.branch }}
+        run: |
+          set -euo pipefail
+          BODY=$(cat <<EOF
+          Synced from upstream **$UP**.
+
+          - Upstream changelog: https://github.com/laravel/framework/releases/tag/$UP
+          - Fork branch: \`$BRANCH\`
+          - Fork divergences (only relevant for \`-opinionated\`): see [\`OPINIONATED.md\`](https://github.com/${{ github.repository }}/blob/$BRANCH/OPINIONATED.md)
+
+          Pin in your consumer \`composer.json\`:
+
+          \`\`\`json
+          "require": {
+              "laravel/framework": "$FT"
+          }
+          \`\`\`
+          EOF
+          )
+
+          gh release create "$FT" \
+            --target "$BRANCH" \
+            --title "$FT" \
+            --notes "$BODY"
