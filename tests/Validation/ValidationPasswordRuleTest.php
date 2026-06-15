@@ -4,6 +4,7 @@ namespace Illuminate\Tests\Validation;
 
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Validation\Rule as RuleContract;
+use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Support\Facades\Facade;
 use Illuminate\Translation\ArrayLoader;
 use Illuminate\Translation\Translator;
@@ -116,6 +117,26 @@ class ValidationPasswordRuleTest extends TestCase
 
     public function testUncompromised()
     {
+        // Avoid flaky live network calls — the NotPwnedVerifier HTTP behaviour is
+        // exercised in ValidationNotPwnedVerifierTest. Here we only test that the
+        // Password rule correctly delegates to the verifier and honours the threshold.
+        $compromised = ['123456', 'password', 'welcome', 'abc123', '123456789', '12345678', 'nuno'];
+        Container::getInstance()->instance(
+            UncompromisedVerifier::class,
+            new class($compromised) implements UncompromisedVerifier {
+                public function __construct(private array $compromised) {}
+
+                public function verify($data)
+                {
+                    if (! in_array($data['value'], $this->compromised, true)) {
+                        return true;
+                    }
+
+                    return $data['threshold'] >= 9999999;
+                }
+            }
+        );
+
         $this->fails(Password::min(2)->uncompromised(), [
             '123456',
             'password',
