@@ -5,30 +5,35 @@ namespace Illuminate\Tests\Database;
 use Illuminate\Database\Console\Migrations\InstallCommand;
 use Illuminate\Database\Migrations\MigrationRepositoryInterface;
 use Illuminate\Foundation\Application;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMigrationInstallCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testFireCallsRepositoryToInstall()
     {
-        $command = new InstallCommand($repo = m::mock(MigrationRepositoryInterface::class));
+        $repo = Double::for(MigrationRepositoryInterface::class);
+        $command = new InstallCommand($repo);
         $command->setLaravel(new Application);
-        $repo->shouldReceive('setSource')->once()->with('foo');
-        $repo->shouldReceive('createRepository')->once();
-        $repo->shouldReceive('repositoryExists')->once()->andReturn(false);
+        $repo->expects('setSource')->with('foo');
+        $repo->expects('createRepository');
+        $repo->expects('repositoryExists')->returns(false);
 
         $this->runCommand($command, ['--database' => 'foo']);
     }
 
     public function testFireCallsRepositoryToInstallExists()
     {
-        $command = new InstallCommand($repo = m::mock(MigrationRepositoryInterface::class));
+        $repo = Double::for(MigrationRepositoryInterface::class);
+        $command = new InstallCommand($repo);
         $command->setLaravel(new Application);
-        $repo->shouldReceive('setSource')->once()->with('foo');
-        $repo->shouldReceive('repositoryExists')->once()->andReturn(true);
+        $repo->expects('setSource')->with('foo');
+        $repo->expects('repositoryExists')->returns(true);
 
         $this->runCommand($command, ['--database' => 'foo']);
     }

@@ -4,19 +4,16 @@ namespace Illuminate\Tests\Queue;
 
 use Illuminate\Foundation\Application;
 use Illuminate\Queue\Console\ListFailedCommand;
-use Mockery as m;
+use Illuminate\Queue\Failed\FailedJobProviderInterface;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 class ListFailedCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-
-        parent::tearDown();
-    }
+    use VerifiesDoubles;
 
     public function testItDisplaysEmptyFailedJobsAsJson()
     {
@@ -56,12 +53,53 @@ class ListFailedCommandTest extends TestCase
         ]), $output);
     }
 
+    public function testItFiltersFailedJobsByQueue()
+    {
+        $payload = json_encode([
+            'job' => 'Illuminate\Queue\CallQueuedHandler@call',
+            'data' => [
+                'command' => 'O:32:"Illuminate\Tests\Queue\ExampleJob":0:{}',
+            ],
+        ]);
+
+        $output = $this->runCommandWithFailedJobs([
+            (object) [
+                'id' => 'default-job-id',
+                'connection' => 'redis',
+                'queue' => 'default',
+                'payload' => $payload,
+                'exception' => 'Exception stack trace',
+                'failed_at' => '2026-05-18 12:00:00',
+            ],
+            (object) [
+                'id' => 'emails-job-id',
+                'connection' => 'redis',
+                'queue' => 'emails',
+                'payload' => $payload,
+                'exception' => 'Exception stack trace',
+                'failed_at' => '2026-05-18 12:05:00',
+            ],
+        ], ['--json' => true, '--queue' => 'emails']);
+
+        $this->assertJson($output);
+        $this->assertJsonStringEqualsJsonString(json_encode([
+            [
+                'id' => 'emails-job-id',
+                'connection' => 'redis',
+                'queue' => 'emails',
+                'class' => 'Illuminate\Tests\Queue\ExampleJob',
+                'failed_at' => '2026-05-18 12:05:00',
+            ],
+        ]), $output);
+    }
+
     protected function runCommandWithFailedJobs(array $failedJobs, array $arguments = []): string
     {
         $container = new Application;
-        $container->instance('queue.failer', $failer = m::mock());
+        $failer = Double::for(FailedJobProviderInterface::class);
+        $container->instance('queue.failer', $failer);
 
-        $failer->shouldReceive('all')->once()->andReturn($failedJobs);
+        $failer->expects('all')->returns($failedJobs);
 
         $command = new ListFailedCommand;
         $command->setLaravel($container);

@@ -11,6 +11,8 @@ use Illuminate\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModelW
 use Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceCollectionTestResource;
 use Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResource;
 use Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResourceCollection;
+use LogicException;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 
 class DatabaseEloquentResourceCollectionTest extends TestCase
@@ -28,8 +30,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
 
     public function testItThrowsExceptionWhenResourceCannotBeFound()
     {
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Illuminate\Tests\Database\Fixtures\Models\EloquentResourceCollectionTestModel].');
+        $this->expectExceptionObject(new LogicException('Failed to find resource class for model [Illuminate\Tests\Database\Fixtures\Models\EloquentResourceCollectionTestModel].'));
 
         $collection = new Collection([
             new EloquentResourceCollectionTestModel(),
@@ -37,6 +38,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
         $collection->toResourceCollection();
     }
 
+    #[RunInSeparateProcess]
     public function testItCanGuessResourceWhenNotProvided()
     {
         $collection = new Collection([
@@ -71,5 +73,23 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
 
         $this->assertInstanceOf(AnonymousResourceCollection::class, $resource);
         $this->assertInstanceOf(EloquentResourceTestJsonResource::class, $resource[0]);
+    }
+
+    public function testItCanGuessResourceForCollectionWithoutZeroKey()
+    {
+        $first = new EloquentResourceTestResourceModelWithUseResourceAttribute();
+        $second = new EloquentResourceTestResourceModelWithUseResourceAttribute();
+
+        $filtered = (new Collection([$first, $second]))->filter(fn ($model) => $model === $second);
+        $resource = $filtered->toResourceCollection();
+
+        $this->assertInstanceOf(AnonymousResourceCollection::class, $resource);
+        $this->assertCount(1, $resource->collection);
+
+        $keyed = (new Collection([$first, $second]))->keyBy(fn ($model) => spl_object_id($model));
+        $resource = $keyed->toResourceCollection();
+
+        $this->assertInstanceOf(AnonymousResourceCollection::class, $resource);
+        $this->assertCount(2, $resource->collection);
     }
 }

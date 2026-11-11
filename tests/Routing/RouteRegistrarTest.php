@@ -5,14 +5,21 @@ namespace Illuminate\Tests\Routing;
 use BadMethodCallException;
 use FooController;
 use Illuminate\Container\Container;
-use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Events\Dispatcher;
 use Illuminate\Http\Request;
+use Illuminate\Routing\CallableDispatcher;
+use Illuminate\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use Illuminate\Routing\Router;
-use Mockery as m;
+use Illuminate\Routing\RouteRegistrar;
+use Illuminate\Tests\Routing\Fixtures\CategoryBackedEnum;
+use Illuminate\Tests\Routing\Fixtures\IntegerEnum;
+use Illuminate\Tests\Routing\Fixtures\RouteDomainEnum;
+use Illuminate\Tests\Routing\Fixtures\RouteNameEnum;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use Stringable;
 
-include_once 'Enums.php';
+include_once 'Fixtures/Enums.php';
 
 class RouteRegistrarTest extends TestCase
 {
@@ -23,9 +30,10 @@ class RouteRegistrarTest extends TestCase
 
     protected function setUp(): void
     {
-        parent::setUp();
+        $container = new Container;
+        $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
 
-        $this->router = new Router(m::mock(Dispatcher::class), Container::getInstance());
+        $this->router = new Router(new Dispatcher, $container);
     }
 
     public function testMiddlewareFluentRegistration()
@@ -213,6 +221,15 @@ class RouteRegistrarTest extends TestCase
 
         $this->seeResponse('saved', Request::create('users', 'POST'));
         $this->seeMiddleware('post-middleware');
+    }
+
+    public function testCanRegisterQueryRouteWithControllerAction()
+    {
+        $this->router->middleware('query-middleware')
+            ->query('users', RouteRegistrarControllerStub::class.'@index');
+
+        $this->seeResponse('controller', Request::create('users', 'QUERY'));
+        $this->seeMiddleware('query-middleware');
     }
 
     public function testCanRegisterAnyRouteWithClosureAction()
@@ -520,8 +537,7 @@ class RouteRegistrarTest extends TestCase
 
     public function testRegisteringNonApprovedAttributesThrows()
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Method Illuminate\Routing\RouteRegistrar::unsupportedMethod does not exist.');
+        $this->expectExceptionObject(new BadMethodCallException('Method Illuminate\Routing\RouteRegistrar::unsupportedMethod does not exist.'));
 
         $this->router->domain('foo')->unsupportedMethod('bar')->group(function ($router) {
             //
@@ -572,6 +588,147 @@ class RouteRegistrarTest extends TestCase
         $this->assertTrue($route->enforcesScopedBindings());
     }
 
+    public function testCanSetRouteMetadata()
+    {
+        $route = $this->router
+            ->metadata(['head' => ['title' => 'Users']])
+            ->get('users', function () {
+                return 'all-users';
+            })
+            ->metadata(['head' => ['description' => 'All users.']]);
+
+        $this->assertSame([
+            'title' => 'Users',
+            'description' => 'All users.',
+        ], $route->getMetadata('head'));
+        $this->assertSame('Users', $route->getMetadata('head.title'));
+    }
+
+    public function testCanSetRouteMetadataOnGroup()
+    {
+        $this->router
+            ->metadata(['head' => ['robots' => ['noindex', 'nofollow']]])
+            ->group(function ($router) {
+                $router
+                    ->metadata(['head' => ['title' => 'Users']])
+                    ->get('users', function () {
+                        return 'all-users';
+                    });
+            });
+
+        $route = $this->router->getRoutes()->getRoutes()[0];
+
+        $this->assertSame([
+            'robots' => ['noindex', 'nofollow'],
+            'title' => 'Users',
+        ], $route->getMetadata('head'));
+    }
+
+    public function testRouteMetadataListValuesReplaceParentValues()
+    {
+        $this->router
+            ->metadata(['head' => ['robots' => ['index', 'follow']]])
+            ->group(function ($router) {
+                $router
+                    ->metadata(['head' => ['robots' => ['noindex']]])
+                    ->get('users', function () {
+                        return 'all-users';
+                    });
+            });
+
+        $route = $this->router->getRoutes()->getRoutes()[0];
+
+        $this->assertSame(['noindex'], $route->getMetadata('head.robots'));
+    }
+
+    public function testCanSetRouteMetadataOnGroupUsingArraySyntax()
+    {
+        $this->router->group(['metadata' => ['head' => ['title' => 'Users']]], function ($router) {
+            $router->get('users', function () {
+                return 'all-users';
+            });
+        });
+
+        $route = $this->router->getRoutes()->getRoutes()[0];
+
+        $this->assertSame(['title' => 'Users'], $route->getMetadata('head'));
+    }
+
+    public function testEmptyRouteMetadataArrayReplacesParentValue()
+    {
+        $this->router
+            ->metadata(['head' => ['title' => 'Users']])
+            ->group(function ($router) {
+                $router
+                    ->metadata(['head' => []])
+                    ->get('users', function () {
+                        return 'all-users';
+                    });
+            });
+
+        $route = $this->router->getRoutes()->getRoutes()[0];
+
+        $this->assertSame([], $route->getMetadata('head'));
+    }
+
+    public function testRouteMetadataAttributeRequiresArray()
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('Attribute [metadata] expects an array.'));
+
+        (new RouteRegistrar($this->router))->attribute('metadata', 'invalid');
+    }
+
+    public function testRouteMetadataDoesNotCollideWithRouteActions()
+    {
+        $route = $this->router
+            ->middleware('web')
+            ->metadata(['middleware' => 'metadata'])
+            ->get('users', function () {
+                return 'all-users';
+            });
+
+        $this->assertSame('metadata', $route->getMetadata('middleware'));
+        $this->assertSame(['web'], $route->getAction('middleware'));
+    }
+
+    public function testRouteMetadataMergesThroughDeeplyNestedGroups()
+    {
+        $this->router
+            ->metadata(['head' => ['title' => 'Outer', 'description' => 'Outer description']])
+            ->group(function ($router) {
+                $router
+                    ->metadata(['head' => ['title' => 'Middle', 'author' => 'Taylor']])
+                    ->group(function ($router) {
+                        $router
+                            ->metadata(['head' => ['title' => 'Inner']])
+                            ->get('users', function () {
+                                return 'all-users';
+                            });
+                    });
+            });
+
+        $route = $this->router->getRoutes()->getRoutes()[0];
+
+        $this->assertSame([
+            'title' => 'Inner',
+            'description' => 'Outer description',
+            'author' => 'Taylor',
+        ], $route->getMetadata('head'));
+    }
+
+    public function testSetMetadataReplacesExistingMetadata()
+    {
+        $route = $this->router
+            ->metadata(['head' => ['title' => 'Original', 'description' => 'Goes away']])
+            ->get('users', function () {
+                return 'all-users';
+            });
+
+        $route->setMetadata(['head' => ['title' => 'Replaced']]);
+
+        $this->assertSame(['head' => ['title' => 'Replaced']], $route->getMetadata());
+    }
+
     public function testCanRegisterResource()
     {
         $this->router->middleware('resource-middleware')
@@ -579,6 +736,40 @@ class RouteRegistrarTest extends TestCase
 
         $this->seeResponse('deleted', Request::create('users/1', 'DELETE'));
         $this->seeMiddleware('resource-middleware');
+    }
+
+    public function testCanSetRouteMetadataOnResource()
+    {
+        $this->router->resource('users', RouteRegistrarControllerStub::class)
+            ->metadata(['head' => ['title' => 'Users']]);
+
+        $this->assertSame(
+            ['title' => 'Users'],
+            $this->router->getRoutes()->getByName('users.index')->getMetadata('head')
+        );
+    }
+
+    public function testCanSetRouteMetadataOnResourceGroup()
+    {
+        $this->router
+            ->metadata(['head' => ['title' => 'Users']])
+            ->resource('users', RouteRegistrarControllerStub::class);
+
+        $this->assertSame(
+            ['title' => 'Users'],
+            $this->router->getRoutes()->getByName('users.index')->getMetadata('head')
+        );
+    }
+
+    public function testCanSetRouteMetadataOnApiResource()
+    {
+        $this->router->apiResource('users', RouteRegistrarControllerStub::class)
+            ->metadata(['head' => ['title' => 'Users']]);
+
+        $this->assertSame(
+            ['title' => 'Users'],
+            $this->router->getRoutes()->getByName('users.index')->getMetadata('head')
+        );
     }
 
     public function testCanRegisterResourcesWithExceptOption()
@@ -1081,6 +1272,26 @@ class RouteRegistrarTest extends TestCase
         }
     }
 
+    public function testWhereUlidRegistration()
+    {
+        $this->router->get('/{foo}')->whereUlid('foo');
+
+        $this->assertTrue($this->getRoute()->matches(Request::create('/01ARZ3NDEKTSV4RRFFQ69G5FAV', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/01ARZ3NDEKTSV4RRFFQ69G5FA', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/01ARZ3NDEKTSV4RRFFQ69G5FAI', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/81ARZ3NDEKTSV4RRFFQ69G5FAV', 'GET')));
+    }
+
+    public function testWhereUuidRegistration()
+    {
+        $this->router->get('/{foo}')->whereUuid('foo');
+
+        $this->assertTrue($this->getRoute()->matches(Request::create('/2cd90b6d-3c34-4a0a-9d0d-9d0b7b1a2e6f', 'GET')));
+        $this->assertTrue($this->getRoute()->matches(Request::create('/2CD90B6D-3C34-4A0A-9D0D-9D0B7B1A2E6F', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/2cd90b6d3c344a0a9d0d9d0b7b1a2e6f', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/2cd90b6d-3c34-4a0a-9d0d-9d0b7b1a2e6', 'GET')));
+    }
+
     public function testWhereInRegistration()
     {
         $wheres = ['foo' => 'one|two', 'bar' => 'one|two'];
@@ -1263,6 +1474,14 @@ class RouteRegistrarTest extends TestCase
         $this->assertSame('users.index', $this->getRoute()->getName());
     }
 
+    public function testCanSetRouteNameWithNonCallableControllerActionArray()
+    {
+        $this->router->name('users.missing')->get('users', [RouteRegistrarControllerStub::class, 'missing']);
+
+        $this->assertSame('users.missing', $this->getRoute()->getName());
+        $this->assertSame(RouteRegistrarControllerStub::class.'@missing', ltrim($this->getRoute()->getAction('uses'), '\\'));
+    }
+
     public function testCanSetRouteNameUsingStringBackedEnum()
     {
         $this->router->name(RouteNameEnum::UserIndex)->get('users', fn () => 'all-users');
@@ -1272,7 +1491,7 @@ class RouteRegistrarTest extends TestCase
 
     public function testCannotSetRouteNameUsingIntegerBackedEnum()
     {
-        $this->expectExceptionObject(new \InvalidArgumentException('Attribute [name] expects a string backed enum.'));
+        $this->expectExceptionObject(new InvalidArgumentException('Attribute [name] expects a string backed enum.'));
 
         $this->router->name(IntegerEnum::One)->get('users', fn () => 'all-users');
     }
@@ -1286,7 +1505,7 @@ class RouteRegistrarTest extends TestCase
 
     public function testCannotSetRouteDomainUsingIntegerBackedEnum()
     {
-        $this->expectExceptionObject(new \InvalidArgumentException('Attribute [domain] expects a string backed enum.'));
+        $this->expectExceptionObject(new InvalidArgumentException('Attribute [domain] expects a string backed enum.'));
 
         $this->router->domain(IntegerEnum::One)->get('users', fn () => 'all-users');
     }
@@ -1350,6 +1569,17 @@ class RouteRegistrarTest extends TestCase
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('user.update'));
     }
 
+    public function testCanSetRouteMetadataOnSingleton()
+    {
+        $this->router->singleton('user', RouteRegistrarControllerStub::class)
+            ->metadata(['head' => ['title' => 'User']]);
+
+        $this->assertSame(
+            ['title' => 'User'],
+            $this->router->getRoutes()->getByName('user.show')->getMetadata('head')
+        );
+    }
+
     public function testCanRegisterApiSingleton()
     {
         $this->router->apiSingleton('user', RouteRegistrarControllerStub::class);
@@ -1358,6 +1588,17 @@ class RouteRegistrarTest extends TestCase
 
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('user.show'));
         $this->assertTrue($this->router->getRoutes()->hasNamedRoute('user.update'));
+    }
+
+    public function testCanSetRouteMetadataOnApiSingleton()
+    {
+        $this->router->apiSingleton('user', RouteRegistrarControllerStub::class)
+            ->metadata(['head' => ['title' => 'User']]);
+
+        $this->assertSame(
+            ['title' => 'User'],
+            $this->router->getRoutes()->getByName('user.show')->getMetadata('head')
+        );
     }
 
     public function testCanRegisterCreatableSingleton()

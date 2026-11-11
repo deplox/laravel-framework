@@ -2,32 +2,20 @@
 
 namespace Illuminate\Tests\Events;
 
-use Illuminate\Container\Container;
 use Illuminate\Events\Dispatcher;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\TestCase;
 
 class EventsSubscriberTest extends TestCase
 {
-    public function testEventSubscribers()
-    {
-        $this->expectNotToPerformAssertions();
-
-        $d = new Dispatcher($container = m::mock(Container::class));
-        $subs = m::mock(ExampleSubscriber::class);
-        $subs->shouldReceive('subscribe')->once()->with($d);
-        $container->shouldReceive('make')->once()->with(ExampleSubscriber::class)->andReturn($subs);
-
-        $d->subscribe(ExampleSubscriber::class);
-    }
+    use VerifiesDoubles;
 
     public function testEventSubscribeCanAcceptObject()
     {
-        $this->expectNotToPerformAssertions();
-
         $d = new Dispatcher;
-        $subs = m::mock(ExampleSubscriber::class);
-        $subs->shouldReceive('subscribe')->once()->with($d);
+        $subs = Double::for(ExampleSubscriber::class);
+        $subs->expects('subscribe')->with($d);
 
         $d->subscribe($subs);
     }

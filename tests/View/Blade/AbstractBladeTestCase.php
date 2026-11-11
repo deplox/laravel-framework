@@ -6,11 +6,14 @@ use Illuminate\Container\Container;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\View\Compilers\BladeCompiler;
 use Illuminate\View\Component;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\TestCase;
 
 abstract class AbstractBladeTestCase extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * @var \Illuminate\View\Compilers\BladeCompiler
      */
@@ -18,8 +21,6 @@ abstract class AbstractBladeTestCase extends TestCase
 
     protected function setUp(): void
     {
-        parent::setUp();
-
         $this->compiler = new BladeCompiler($this->getFiles(), __DIR__);
     }
 
@@ -29,12 +30,10 @@ abstract class AbstractBladeTestCase extends TestCase
         Component::flushCache();
         Component::forgetComponentsResolver();
         Component::forgetFactory();
-
-        parent::tearDown();
     }
 
     protected function getFiles()
     {
-        return m::mock(Filesystem::class);
+        return Double::for(Filesystem::class);
     }
 }

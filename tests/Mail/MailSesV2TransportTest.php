@@ -4,13 +4,15 @@ namespace Illuminate\Tests\Mail;
 
 use Aws\Command;
 use Aws\Exception\AwsException;
+use Aws\MockHandler;
+use Aws\Result;
 use Aws\SesV2\SesV2Client;
 use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
 use Illuminate\Mail\MailManager;
 use Illuminate\Mail\Transport\SesV2Transport;
 use Illuminate\View\Factory;
-use Mockery as m;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\Header\MetadataHeader;
@@ -57,23 +59,50 @@ class MailSesV2TransportTest extends TestCase
         $message->getHeaders()->add(new MetadataHeader('FooTag', 'TagValue'));
         $message->getHeaders()->addTextHeader('X-SES-LIST-MANAGEMENT-OPTIONS', 'contactListName=TestList;topicName=TestTopic');
 
-        $client = m::mock(SesV2Client::class);
-        $sesResult = m::mock();
-        $sesResult->shouldReceive('get')
-            ->with('MessageId')
-            ->once()
-            ->andReturn('ses-message-id');
-        $client->shouldReceive('sendEmail')->once()
-            ->with(m::on(function ($arg) {
-                return $arg['Source'] === 'myself@example.com' &&
-                    $arg['Destination']['ToAddresses'] === ['me@example.com', 'you@example.com'] &&
-                    $arg['ListManagementOptions'] === ['ContactListName' => 'TestList', 'TopicName' => 'TestTopic'] &&
-                    $arg['EmailTags'] === [['Name' => 'FooTag', 'Value' => 'TagValue']] &&
-                    str_contains($arg['Content']['Raw']['Data'], 'Reply-To: Taylor Otwell <taylor@example.com>');
-            }))
-            ->andReturn($sesResult);
+        $handler = new MockHandler([new Result(['MessageId' => 'ses-message-id'])]);
 
-        (new SesV2Transport($client))->send($message);
+        (new SesV2Transport($this->sesClient($handler)))->send($message);
+
+        $this->assertSame('SendEmail', $handler->getLastCommand()->getName());
+
+        $arg = $handler->getLastCommand()->toArray();
+
+        $this->assertSame('myself@example.com', $arg['Source']);
+        $this->assertSame(['me@example.com', 'you@example.com'], $arg['Destination']['ToAddresses']);
+        $this->assertSame(['ContactListName' => 'TestList', 'TopicName' => 'TestTopic'], $arg['ListManagementOptions']);
+        $this->assertSame([['Name' => 'FooTag', 'Value' => 'TagValue']], $arg['EmailTags']);
+        $this->assertStringContainsString('Reply-To: Taylor Otwell <taylor@example.com>', $arg['Content']['Raw']['Data']);
+    }
+
+    public function testSendWithTenantName(): void
+    {
+        $message = new Email();
+        $message->subject('Foo subject');
+        $message->text('Bar body');
+        $message->sender('myself@example.com');
+        $message->to('me@example.com');
+        $message->getHeaders()->addTextHeader('X-SES-TENANT-NAME', 'my-tenant');
+
+        $handler = new MockHandler([new Result(['MessageId' => 'ses-message-id'])]);
+
+        (new SesV2Transport($this->sesClient($handler)))->send($message);
+
+        $this->assertSame('my-tenant', $handler->getLastCommand()->toArray()['TenantName']);
+    }
+
+    public function testSendWithoutTenantNameDoesNotSetTheOption(): void
+    {
+        $message = new Email();
+        $message->subject('Foo subject');
+        $message->text('Bar body');
+        $message->sender('myself@example.com');
+        $message->to('me@example.com');
+
+        $handler = new MockHandler([new Result(['MessageId' => 'ses-message-id'])]);
+
+        (new SesV2Transport($this->sesClient($handler)))->send($message);
+
+        $this->assertArrayNotHasKey('TenantName', $handler->getLastCommand()->toArray());
     }
 
     public function testSendError(): void
@@ -84,15 +113,25 @@ class MailSesV2TransportTest extends TestCase
         $message->sender('myself@example.com');
         $message->to('me@example.com');
 
-        $client = m::mock(SesV2Client::class);
-        $client->shouldReceive('sendEmail')->once()
-            ->andThrow(new AwsException('Email address is not verified.', new Command('sendRawEmail')));
+        $handler = new MockHandler;
+        $handler->append(new AwsException('Email address is not verified.', new Command('sendRawEmail')));
 
         $this->expectException(TransportException::class);
 
-        (new SesV2Transport($client))->send($message);
+        (new SesV2Transport($this->sesClient($handler)))->send($message);
     }
 
+    protected function sesClient(MockHandler $handler): SesV2Client
+    {
+        return new SesV2Client([
+            'region' => 'us-east-1',
+            'version' => 'latest',
+            'credentials' => ['key' => 'foo', 'secret' => 'bar'],
+            'handler' => $handler,
+        ]);
+    }
+
+    #[AllowMockObjectsWithoutExpectations]
     public function testSesV2LocalConfiguration(): void
     {
         $container = new Container;

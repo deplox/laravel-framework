@@ -2,16 +2,22 @@
 
 namespace Illuminate\Tests\Integration\Generators;
 
+use Illuminate\Support\Carbon;
+
 class ModelMakeCommandTest extends TestCase
 {
     protected $files = [
         'app/Models/Foo.php',
         'app/Models/Foo/Bar.php',
+        'app/Models/Aaa.php',
+        'app/Models/Xxx.php',
         'app/Controllers/FooController.php',
         'app/Controllers/BarController.php',
         'database/factories/FooFactory.php',
         'database/factories/Foo/BarFactory.php',
+        'database/migrations/*_create_aaas_table.php',
         'database/migrations/*_create_foos_table.php',
+        'database/migrations/*_create_xxxes_table.php',
         'database/seeders/FooSeeder.php',
         'tests/Feature/Models/FooTest.php',
     ];

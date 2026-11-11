@@ -6,17 +6,14 @@ use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Stringable;
-use Mockery as m;
 use Orchestra\Testbench\TestCase;
-use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Output\BufferedOutput;
 
 class MigratorTest extends TestCase
 {
-    /**
-     * @var \Mockery\Mock
-     */
-    private $output;
+    private BufferedOutput $output;
+
+    private array $expectedLines = [];
 
     public $subject;
 
@@ -24,7 +21,7 @@ class MigratorTest extends TestCase
     {
         parent::setUp();
 
-        $this->output = m::mock(OutputInterface::class);
+        $this->output = new BufferedOutput;
         $this->subject = $this->app->make('migrator');
         $this->subject->setOutput($this->output);
         $this->subject->getRepository()->createRepository();
@@ -46,9 +43,8 @@ class MigratorTest extends TestCase
         $this->expectTask('2016_10_04_000000_modify_people_table', 'DONE');
         $this->expectTask('2017_10_04_000000_add_age_to_people', 'SKIPPED');
 
-        $this->output->shouldReceive('writeln')->once();
-
-        $this->subject->run([__DIR__.'/fixtures']);
+        $this->subject->run([__DIR__.'/Fixtures']);
+        $this->assertExpectedOutput();
 
         $this->assertTrue(DB::getSchemaBuilder()->hasTable('people'));
         $this->assertTrue(DB::getSchemaBuilder()->hasColumn('people', 'first_name'));
@@ -61,7 +57,7 @@ class MigratorTest extends TestCase
         $this->app->forgetInstance('migrator');
         $this->subject = $this->app->make('migrator');
 
-        $this->subject->run([__DIR__.'/fixtures']);
+        $this->subject->run([__DIR__.'/Fixtures']);
 
         $this->assertTrue(DB::getSchemaBuilder()->hasTable('people'));
         $this->assertTrue(DB::getSchemaBuilder()->hasColumn('people', 'first_name'));
@@ -76,15 +72,22 @@ class MigratorTest extends TestCase
 
         Migrator::withoutMigrations(['2015_10_04_000000_modify_people_table.php', '2016_10_04_000000_modify_people_table']);
 
-        $this->subject->run([__DIR__.'/fixtures']);
+        $this->subject->run([__DIR__.'/Fixtures']);
+        $this->assertExpectedOutput();
         $this->assertTrue(DB::getSchemaBuilder()->hasTable('people'));
         $this->assertFalse(DB::getSchemaBuilder()->hasColumn('people', 'first_name'));
         $this->assertFalse(DB::getSchemaBuilder()->hasColumn('people', 'last_name'));
 
         Migrator::withoutMigrations([]);
-        $this->subject->run([__DIR__.'/fixtures']);
+        $this->subject->run([__DIR__.'/Fixtures']);
         $this->assertTrue(DB::getSchemaBuilder()->hasColumn('people', 'first_name'));
         $this->assertTrue(DB::getSchemaBuilder()->hasColumn('people', 'last_name'));
+    }
+
+    public function testShouldSkip()
+    {
+        $this->assertFalse($this->subject->shouldSkip(__DIR__.'/Fixtures/2014_10_12_000000_create_people_table.php'));
+        $this->assertTrue($this->subject->shouldSkip(__DIR__.'/Fixtures/2017_10_04_000000_add_age_to_people.php'));
     }
 
     public function testRollback()
@@ -100,9 +103,8 @@ class MigratorTest extends TestCase
         $this->expectTask('2015_10_04_000000_modify_people_table', 'DONE');
         $this->expectTask('2014_10_12_000000_create_people_table', 'DONE');
 
-        $this->output->shouldReceive('writeln')->once();
-
-        $this->subject->rollback([__DIR__.'/fixtures']);
+        $this->subject->rollback([__DIR__.'/Fixtures']);
+        $this->assertExpectedOutput();
 
         $this->assertFalse(DB::getSchemaBuilder()->hasTable('people'));
     }
@@ -123,9 +125,8 @@ class MigratorTest extends TestCase
         $this->expectTwoColumnDetail('2016_10_04_000000_modify_people_table');
         $this->expectBulletList(['alter table "people" add column "last_name" varchar']);
 
-        $this->output->shouldReceive('writeln')->times(3);
-
-        $this->subject->run([__DIR__.'/fixtures'], ['pretend' => true]);
+        $this->subject->run([__DIR__.'/Fixtures'], ['pretend' => true]);
+        $this->assertExpectedOutput();
 
         $this->assertFalse(DB::getSchemaBuilder()->hasTable('people'));
     }
@@ -152,14 +153,14 @@ class MigratorTest extends TestCase
             // Returns an empty array because we are in pretend mode.
             $tablesEmpty = DB::select("SELECT name FROM sqlite_master WHERE type='table'");
 
-            $this->assertTrue([] === $tablesEmpty);
+            $this->assertSame([], $tablesEmpty);
 
             // Returns an array with two tables because we ignore pretend mode.
             $tablesList = DB::withoutPretending(function (): array {
                 return DB::select("SELECT name FROM sqlite_master WHERE type='table'");
             });
 
-            $this->assertTrue([] !== $tablesList);
+            $this->assertNotSame([], $tablesList);
 
             // The following would not be possible in pretend mode, if the
             // method DB::withoutPretending() would not exists,
@@ -171,13 +172,13 @@ class MigratorTest extends TestCase
 
                 $columnsEmpty = DB::select("PRAGMA table_info($table->name)");
 
-                $this->assertTrue([] === $columnsEmpty);
+                $this->assertSame([], $columnsEmpty);
 
                 $columnsList = DB::withoutPretending(function () use ($table): array {
                     return DB::select("PRAGMA table_info($table->name)");
                 });
 
-                $this->assertTrue([] !== $columnsList);
+                $this->assertNotSame([], $columnsList);
                 $this->assertCount(2, $columnsList);
 
                 // Confirm that we are still in pretend mode. This column should
@@ -203,9 +204,7 @@ class MigratorTest extends TestCase
         $this->expectInfo('Running migrations.');
         $this->expectTask('2014_10_12_000000_create_people_is_dynamic_table', 'DONE');
 
-        $this->output->shouldReceive('writeln')->once();
-
-        $this->subject->run([__DIR__.'/pretending/2014_10_12_000000_create_people_is_dynamic_table.php'], ['pretend' => false]);
+        $this->subject->run([__DIR__.'/Fixtures/pretending/2014_10_12_000000_create_people_is_dynamic_table.php'], ['pretend' => false]);
 
         $this->assertTrue(DB::getSchemaBuilder()->hasTable('people'));
 
@@ -221,9 +220,8 @@ class MigratorTest extends TestCase
             'insert into "blogs" ("id", "name") values (2, \'John Doe Blog\')',
         ]);
 
-        $this->output->shouldReceive('writeln')->once();
-
-        $this->subject->run([__DIR__.'/pretending/2023_10_17_000000_dynamic_content_is_shown.php'], ['pretend' => true]);
+        $this->subject->run([__DIR__.'/Fixtures/pretending/2023_10_17_000000_dynamic_content_is_shown.php'], ['pretend' => true]);
+        $this->assertExpectedOutput();
 
         $this->assertFalse(DB::getSchemaBuilder()->hasTable('blogs'));
 
@@ -236,9 +234,8 @@ class MigratorTest extends TestCase
         $this->expectInfo('Running migrations.');
         $this->expectTask('2014_10_12_000000_create_people_non_dynamic_table', 'DONE');
 
-        $this->output->shouldReceive('writeln')->once();
-
-        $this->subject->run([__DIR__.'/pretending/2014_10_12_000000_create_people_non_dynamic_table.php'], ['pretend' => false]);
+        $this->subject->run([__DIR__.'/Fixtures/pretending/2014_10_12_000000_create_people_non_dynamic_table.php'], ['pretend' => false]);
+        $this->assertExpectedOutput();
 
         $this->assertTrue(DB::getSchemaBuilder()->hasTable('people'));
 
@@ -252,9 +249,8 @@ class MigratorTest extends TestCase
             'select * from "people"',
         ]);
 
-        $this->output->shouldReceive('writeln')->once();
-
-        $this->subject->run([__DIR__.'/pretending/2023_10_17_000000_dynamic_content_not_shown.php'], ['pretend' => true]);
+        $this->subject->run([__DIR__.'/Fixtures/pretending/2023_10_17_000000_dynamic_content_not_shown.php'], ['pretend' => true]);
+        $this->assertExpectedOutput();
 
         $this->assertFalse(DB::getSchemaBuilder()->hasTable('blogs'));
 
@@ -263,55 +259,39 @@ class MigratorTest extends TestCase
 
     protected function expectInfo($message): void
     {
-        $this->output->shouldReceive('writeln')->once()->with(m::on(
-            fn ($argument) => (new Stringable($argument))->contains($message),
-        ), m::any());
+        $this->expectedLines[] = $message;
     }
 
     protected function expectTwoColumnDetail($first, $second = null)
     {
-        $this->output->shouldReceive('writeln')->with(m::on(function ($argument) use ($first, $second) {
-            $result = (new Stringable($argument))->contains($first);
+        $this->expectedLines[] = $first;
 
-            if ($result && $second) {
-                $result = (new Stringable($argument))->contains($second);
-            }
-
-            return $result;
-        }), m::any());
+        if ($second) {
+            $this->expectedLines[] = $second;
+        }
     }
 
     protected function expectBulletList($elements): void
     {
-        $this->output->shouldReceive('writeln')->once()->with(m::on(function ($argument) use ($elements) {
-            foreach ($elements as $element) {
-                if (! (new Stringable($argument))->contains("⇂ $element")) {
-                    return false;
-                }
-            }
-
-            return true;
-        }), m::any());
+        foreach ($elements as $element) {
+            $this->expectedLines[] = "⇂ $element";
+        }
     }
 
     protected function expectTask($description, $result): void
     {
-        // Ignore dots...
-        $this->output->shouldReceive('write')->with(m::on(
-            fn ($argument) => (new Stringable($argument))->contains(['<fg=gray></>', '<fg=gray>.</>']),
-        ), m::any(), m::any());
+        $this->expectedLines[] = $description;
+        $this->expectedLines[] = $result;
+    }
 
-        // Ignore duration...
-        $this->output->shouldReceive('write')->with(m::on(
-            fn ($argument) => (new Stringable($argument))->contains(['ms</>']),
-        ), m::any(), m::any());
+    protected function assertExpectedOutput(): void
+    {
+        $output = $this->output->fetch();
 
-        $this->output->shouldReceive('write')->once()->with(m::on(
-            fn ($argument) => (new Stringable($argument))->contains($description),
-        ), m::any(), m::any());
+        foreach ($this->expectedLines as $expected) {
+            $this->assertStringContainsString($expected, $output);
+        }
 
-        $this->output->shouldReceive('writeln')->once()->with(m::on(
-            fn ($argument) => (new Stringable($argument))->contains($result),
-        ), m::any());
+        $this->expectedLines = [];
     }
 }

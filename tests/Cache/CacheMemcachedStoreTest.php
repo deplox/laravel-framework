@@ -4,14 +4,17 @@ namespace Illuminate\Tests\Cache;
 
 use Illuminate\Cache\MemcachedStore;
 use Illuminate\Support\Carbon;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Memcached;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
 
 #[RequiresPhpExtension('memcached')]
 class CacheMemcachedStoreTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testGetReturnsNullWhenNotFound()
     {
         $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['get', 'getResultCode'])->getMock();
@@ -57,7 +60,6 @@ class CacheMemcachedStoreTest extends TestCase
         $store = new MemcachedStore($memcache);
         $result = $store->put('foo', 'bar', 60);
         $this->assertTrue($result);
-        Carbon::setTestNow();
     }
 
     public function testTouchMethodProperlyCallsMemcache(): void
@@ -65,7 +67,7 @@ class CacheMemcachedStoreTest extends TestCase
         $key = 'key';
         $ttl = 60;
 
-        $now = Carbon::now();
+        Carbon::setTestNow($now = Carbon::now());
 
         $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['touch'])->getMock();
 
@@ -76,8 +78,8 @@ class CacheMemcachedStoreTest extends TestCase
 
     public function testIncrementMethodProperlyCallsMemcache()
     {
-        $memcached = m::mock(Memcached::class);
-        $memcached->shouldReceive('increment')->with('foo', 5)->once()->andReturn(5);
+        $memcached = Double::for(Memcached::class);
+        $memcached->expects('increment')->with('foo', 5)->returns(5);
 
         $store = new MemcachedStore($memcached);
         $store->increment('foo', 5);
@@ -85,8 +87,8 @@ class CacheMemcachedStoreTest extends TestCase
 
     public function testDecrementMethodProperlyCallsMemcache()
     {
-        $memcached = m::mock(Memcached::class);
-        $memcached->shouldReceive('decrement')->with('foo', 5)->once()->andReturn(0);
+        $memcached = Double::for(Memcached::class);
+        $memcached->expects('decrement')->with('foo', 5)->returns(0);
 
         $store = new MemcachedStore($memcached);
         $store->decrement('foo', 5);
@@ -99,6 +101,50 @@ class CacheMemcachedStoreTest extends TestCase
         $store = new MemcachedStore($memcache);
         $result = $store->forever('foo', 'bar');
         $this->assertTrue($result);
+    }
+
+    public function testLockAcquireProperlyCallsMemcache()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['add'])->getMock();
+        $memcache->expects($this->once())->method('add')->with('foo', 'owner', $now->copy()->addDays(31)->getTimestamp())->willReturn(true);
+        $store = new MemcachedStore($memcache);
+        $this->assertTrue($store->lock('foo', 60 * 60 * 24 * 31, 'owner')->acquire());
+    }
+
+    public function testLockAcquireWithShortDurationProperlyCallsMemcache()
+    {
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['add'])->getMock();
+        $memcache->expects($this->once())->method('add')->with('foo', 'owner', 10)->willReturn(true);
+        $store = new MemcachedStore($memcache);
+        $this->assertTrue($store->lock('foo', 10, 'owner')->acquire());
+    }
+
+    public function testLockAcquireWithoutExpirationProperlyCallsMemcache()
+    {
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['add'])->getMock();
+        $memcache->expects($this->once())->method('add')->with('foo', 'owner', 0)->willReturn(true);
+        $store = new MemcachedStore($memcache);
+        $this->assertTrue($store->lock('foo', 0, 'owner')->acquire());
+    }
+
+    public function testLockRefreshProperlyCallsMemcache()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['get', 'cas'])->getMock();
+        $memcache->expects($this->once())->method('get')->with('foo', null, Memcached::GET_EXTENDED)->willReturn(['value' => 'owner', 'cas' => 7]);
+        $memcache->expects($this->once())->method('cas')->with(7, 'foo', 'owner', $now->copy()->addDays(31)->getTimestamp())->willReturn(true);
+        $store = new MemcachedStore($memcache);
+        $this->assertTrue($store->lock('foo', 10, 'owner')->refresh(60 * 60 * 24 * 31));
+    }
+
+    public function testLockRefreshWithShortDurationProperlyCallsMemcache()
+    {
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['get', 'cas'])->getMock();
+        $memcache->expects($this->once())->method('get')->with('foo', null, Memcached::GET_EXTENDED)->willReturn(['value' => 'owner', 'cas' => 7]);
+        $memcache->expects($this->once())->method('cas')->with(7, 'foo', 'owner', 60)->willReturn(true);
+        $store = new MemcachedStore($memcache);
+        $this->assertTrue($store->lock('foo', 10, 'owner')->refresh(60));
     }
 
     public function testForgetMethodProperlyCallsMemcache()

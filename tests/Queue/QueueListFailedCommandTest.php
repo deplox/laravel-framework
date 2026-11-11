@@ -5,17 +5,15 @@ namespace Illuminate\Tests\Queue;
 use Illuminate\Foundation\Application;
 use Illuminate\Queue\Console\ListFailedCommand;
 use Illuminate\Queue\Failed\FailedJobProviderInterface;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 class QueueListFailedCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
+    use VerifiesDoubles;
 
     public function testQueuedListenerShowsUnderlyingListenerClassNotWrapper()
     {
@@ -166,8 +164,8 @@ class QueueListFailedCommandTest extends TestCase
         $container = new Application;
 
         // The command resolves the failer via the queue.failer container binding.
-        $failer = m::mock(FailedJobProviderInterface::class);
-        $failer->shouldReceive('all')->andReturn($rows);
+        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer->expects('all')->returns($rows);
         $container->instance('queue.failer', $failer);
 
         $command = new ListFailedCommand;

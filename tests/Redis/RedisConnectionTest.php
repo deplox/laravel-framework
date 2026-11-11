@@ -2,13 +2,16 @@
 
 namespace Illuminate\Tests\Redis;
 
+use Exception;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\Concerns\InteractsWithRedis;
 use Illuminate\Redis\Connections\Connection;
 use Illuminate\Redis\Connections\PhpRedisConnection;
 use Illuminate\Redis\RedisManager;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\TestCase;
 use Predis\Client;
 use Redis;
@@ -16,18 +19,16 @@ use Redis;
 class RedisConnectionTest extends TestCase
 {
     use InteractsWithRedis;
+    use VerifiesDoubles;
 
     protected function setUp(): void
     {
-        parent::setUp();
         $this->setUpRedis();
     }
 
     protected function tearDown(): void
     {
         $this->tearDownRedis();
-
-        parent::tearDown();
     }
 
     public function testItSetsValuesWithExpiry()
@@ -555,9 +556,10 @@ class RedisConnectionTest extends TestCase
     public function testItDispatchesQueryEvent()
     {
         foreach ($this->connections() as $redis) {
-            $redis->setEventDispatcher($events = m::mock(Dispatcher::class));
+            $events = Double::for(Dispatcher::class);
+            $redis->setEventDispatcher($events);
 
-            $events->shouldReceive('dispatch')->once()->with(m::on(function ($event) {
+            $events->expects('dispatch')->with(Argument::satisfies(function ($event) {
                 $this->assertSame('get', $event->command);
                 $this->assertEquals(['foobar'], $event->parameters);
                 $this->assertSame('default', $event->connectionName);
@@ -791,6 +793,48 @@ class RedisConnectionTest extends TestCase
                 'foo',
                 $redis->foo()
             );
+        }
+    }
+
+    public function testItKeepsTheConnectionUsableWhenATransactionFails()
+    {
+        foreach ($this->connections() as $redis) {
+            $redis->set('name', 'taylor');
+
+            try {
+                $redis->transaction(function ($transaction) {
+                    $transaction->set('name', 'mohamed');
+
+                    throw new Exception('Something went wrong.');
+                });
+            } catch (Exception) {
+                //
+            }
+
+            $this->assertSame('taylor', $redis->get('name'));
+
+            $redis->flushall();
+        }
+    }
+
+    public function testItKeepsTheConnectionUsableWhenAPipelineFails()
+    {
+        foreach ($this->connections() as $redis) {
+            $redis->set('name', 'taylor');
+
+            try {
+                $redis->pipeline(function ($pipeline) {
+                    $pipeline->set('name', 'mohamed');
+
+                    throw new Exception('Something went wrong.');
+                });
+            } catch (Exception) {
+                //
+            }
+
+            $this->assertSame('taylor', $redis->get('name'));
+
+            $redis->flushall();
         }
     }
 

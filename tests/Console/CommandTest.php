@@ -2,26 +2,38 @@
 
 namespace Illuminate\Tests\Console;
 
-use Illuminate\Console\Application;
 use Illuminate\Console\Attributes\Aliases;
 use Illuminate\Console\Attributes\Help;
 use Illuminate\Console\Attributes\Hidden;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Attributes\Usage;
 use Illuminate\Console\Command;
+use Illuminate\Console\CommandInput;
 use Illuminate\Console\OutputStyle;
 use Illuminate\Console\View\Components\Factory;
-use Mockery as m;
+use Illuminate\Foundation\Application as FoundationApplication;
+use Illuminate\Support\Carbon;
+use Illuminate\Tests\Console\Concerns\CreatesAnsweredOutputStyles;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use Laravel\Prompts\Prompt;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\NullOutput;
-use Symfony\Component\Console\Question\ChoiceQuestion;
 
 class CommandTest extends TestCase
 {
+    use CreatesAnsweredOutputStyles;
+    use VerifiesDoubles;
+
+    protected function tearDown(): void
+    {
+        Prompt::setOutput(new NullOutput);
+    }
+
     public function testCallingClassCommandResolveCommandViaApplicationResolution()
     {
         $command = new class extends Command
@@ -31,27 +43,28 @@ class CommandTest extends TestCase
             }
         };
 
-        $application = m::mock(Application::class);
-        $command->setLaravel($application);
+        $application = Double::for(FoundationApplication::class, override: true);
+        $laravel = $application->instance();
+        $command->setLaravel($laravel);
 
         $input = new ArrayInput([]);
         $output = new NullOutput;
-        $outputStyle = m::mock(OutputStyle::class);
-        $application->shouldReceive('make')->with(OutputStyle::class, ['input' => $input, 'output' => $output])->andReturn($outputStyle);
-        $application->shouldReceive('make')->with(Factory::class, ['output' => $outputStyle])->andReturn(m::mock(Factory::class));
+        $outputStyle = new OutputStyle($input, $output);
+        $application->expects('make')->with(OutputStyle::class, ['input' => $input, 'output' => $output])->returns($outputStyle);
+        $application->expects('make')->with(Factory::class, ['output' => $outputStyle])->returns(new Factory($outputStyle));
 
-        $application->shouldReceive('call')->with([$command, 'handle'])->andReturnUsing(function () use ($command, $application) {
-            $commandCalled = m::mock(Command::class);
+        $application->expects('call')->with([$command, 'handle'])->resolves(function () use ($command, $application, $laravel) {
+            $commandCalled = Double::for(Command::class);
 
-            $application->shouldReceive('make')->once()->with(Command::class)->andReturn($commandCalled);
+            $application->expects('make')->with(Command::class)->returns($commandCalled);
 
-            $commandCalled->shouldReceive('setApplication')->once()->with(null);
-            $commandCalled->shouldReceive('setLaravel')->once()->with($application);
-            $commandCalled->shouldReceive('run')->once();
+            $commandCalled->expects('setApplication')->with(null);
+            $commandCalled->expects('setLaravel')->with($laravel);
+            $commandCalled->expects('run');
 
             $command->call(Command::class);
         });
-        $application->shouldReceive('runningUnitTests')->andReturn(true);
+        $application->allows('runningUnitTests')->returns(true);
 
         $command->run($input, $output);
     }
@@ -93,7 +106,7 @@ class CommandTest extends TestCase
             }
         };
 
-        $application = app();
+        $application = new FoundationApplication(__DIR__);
         $command->setLaravel($application);
 
         $input = new ArrayInput([
@@ -114,23 +127,74 @@ class CommandTest extends TestCase
         $this->assertSame('third-option-default', $command->option('option-three'));
     }
 
+    public function testGettingCommandInputAsFluentData()
+    {
+        $command = new class extends Command
+        {
+            public function handle()
+            {
+            }
+
+            protected function getArguments()
+            {
+                return [
+                    ['type', InputArgument::OPTIONAL, 'a backed enum argument'],
+                    ['when', InputArgument::OPTIONAL, 'a date argument'],
+                    ['role', InputArgument::OPTIONAL, 'a colliding argument'],
+                ];
+            }
+
+            protected function getOptions()
+            {
+                return [
+                    ['limit', null, InputOption::VALUE_OPTIONAL, 'an integer option'],
+                    ['role', null, InputOption::VALUE_OPTIONAL, 'a colliding option'],
+                ];
+            }
+        };
+
+        $application = new FoundationApplication;
+        $application['env'] = 'testing';
+        $command->setLaravel($application);
+
+        $input = new ArrayInput([
+            'type' => 'foo',
+            'when' => '2026-06-26',
+            'role' => 'admin',
+            '--limit' => '5',
+            '--role' => 'user',
+        ]);
+        $output = new NullOutput;
+
+        $command->run($input, $output);
+
+        $commandInput = $command->input();
+
+        $this->assertInstanceOf(CommandInput::class, $commandInput);
+        $this->assertSame(CommandInputType::Foo, $commandInput->enum('type', CommandInputType::class));
+        $this->assertInstanceOf(Carbon::class, $commandInput->date('when'));
+        $this->assertSame('2026-06-26', $commandInput->date('when')->format('Y-m-d'));
+        $this->assertSame(5, $commandInput->integer('limit'));
+        $this->assertSame('admin', $commandInput->all()['role']);
+        $this->assertSame('admin', $command->input('role'));
+        $this->assertSame('fallback', $command->input('missing', 'fallback'));
+        $this->assertSame('admin', (string) $commandInput->string('role'));
+        $this->assertSame('admin', $commandInput->arguments()['role']);
+        $this->assertSame('user', $commandInput->options()['role']);
+    }
+
     public function testTheInputSetterOverwrite()
     {
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('hasArgument')->once()->with('foo')->andReturn(false);
-
         $command = new Command;
-        $command->setInput($input);
+        $command->setInput(new ArrayInput([]));
 
         $this->assertFalse($command->hasArgument('foo'));
     }
 
     public function testTheOutputSetterOverwrite()
     {
-        $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('writeln')->once()->withArgs(function (...$args) {
-            return $args[0] === '<info>foo</info>';
-        });
+        $output = Double::for(OutputStyle::class);
+        $output->expects('writeln')->with('<info>foo</info>', Argument::remaining());
 
         $command = new Command;
         $command->setOutput($output);
@@ -192,28 +256,22 @@ class CommandTest extends TestCase
 
     public function testChoiceIsSingleSelectByDefault()
     {
-        $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('askQuestion')->once()->withArgs(function (ChoiceQuestion $question) {
-            return $question->isMultiselect() === false;
-        });
-
         $command = new Command;
-        $command->setOutput($output);
+        $command->setOutput($this->outputStyleWithAnswer('yes'));
 
-        $command->choice('Do you need further help?', ['yes', 'no']);
+        $answer = $command->choice('Do you need further help?', ['yes', 'no']);
+
+        $this->assertSame('yes', $answer);
     }
 
     public function testChoiceWithMultiselect()
     {
-        $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('askQuestion')->once()->withArgs(function (ChoiceQuestion $question) {
-            return $question->isMultiselect() === true;
-        });
-
         $command = new Command;
-        $command->setOutput($output);
+        $command->setOutput($this->outputStyleWithAnswer('option-1,option-2'));
 
-        $command->choice('Select all that apply.', ['option-1', 'option-2', 'option-3'], null, null, true);
+        $answer = $command->choice('Select all that apply.', ['option-1', 'option-2', 'option-3'], null, null, true);
+
+        $this->assertSame(['option-1', 'option-2'], $answer);
     }
 
     public function testSignatureAttributeCanSetAliases()
@@ -260,6 +318,12 @@ class CommandTest extends TestCase
 
         $this->assertSame(['foo:bar 1', 'foo:bar 1 --force'], $command->getUsages());
     }
+}
+
+enum CommandInputType: string
+{
+    case Foo = 'foo';
+    case Bar = 'bar';
 }
 
 #[Signature('foo:bar', aliases: ['bar:baz', 'baz:qux'])]

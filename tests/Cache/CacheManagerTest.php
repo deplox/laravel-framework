@@ -9,15 +9,19 @@ use Illuminate\Cache\StorageStore;
 use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Events\Dispatcher as Event;
 use Illuminate\Tests\Cache\Fixtures\ArrayFilesystem;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
 class CacheManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCustomDriverClosureBoundObjectIsCacheManager()
     {
         $manager = new CacheManager($this->getApp([
@@ -109,8 +113,8 @@ class CacheManagerTest extends TestCase
     {
         $disk = new ArrayFilesystem;
 
-        $filesystem = m::mock();
-        $filesystem->shouldReceive('disk')->with('s3')->once()->andReturn($disk);
+        $filesystem = Double::for(FilesystemFactory::class);
+        $filesystem->expects('disk')->with('s3')->returns($disk);
 
         $app = $this->getApp([
             'cache' => [
@@ -268,18 +272,11 @@ class CacheManagerTest extends TestCase
 
     public function testForgetDriver()
     {
-        $cacheManager = m::mock(CacheManager::class)
-            ->shouldAllowMockingProtectedMethods()
-            ->makePartial();
+        $cacheManager = Double::for(CacheManager::class)->passthru();
 
-        $cacheManager->shouldReceive('resolve')
-            ->withArgs(['array'])
-            ->times(4)
-            ->andReturn(new ArrayStore);
+        $cacheManager->expects('resolve')->with('array')->times(4)->returns(new ArrayStore);
 
-        $cacheManager->shouldReceive('getDefaultDriver')
-            ->once()
-            ->andReturn('array');
+        $cacheManager->expects('getDefaultDriver')->returns('array');
 
         foreach (['array', ['array'], null] as $option) {
             $cacheManager->store('array');
@@ -311,8 +308,7 @@ class CacheManagerTest extends TestCase
 
     public function testThrowExceptionWhenUnknownDriverIsUsed()
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Driver [unknown_taxi_driver] is not supported.');
+        $this->expectExceptionObject(new InvalidArgumentException('Driver [unknown_taxi_driver] is not supported.'));
 
         $userConfig = [
             'cache' => [
@@ -333,8 +329,7 @@ class CacheManagerTest extends TestCase
 
     public function testThrowExceptionWhenUnknownStoreIsUsed()
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cache store [alien_store] is not defined.');
+        $this->expectExceptionObject(new InvalidArgumentException('Cache store [alien_store] is not defined.'));
 
         $userConfig = [
             'cache' => [

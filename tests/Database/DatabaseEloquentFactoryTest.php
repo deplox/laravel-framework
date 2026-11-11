@@ -20,20 +20,24 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Tests\Database\Fixtures\Models\Money\Price;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
 class DatabaseEloquentFactoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         $container = Container::getInstance();
         $container->singleton(Generator::class, function ($app, $parameters) {
             return \Faker\Factory::create('en_US');
         });
-        $container->instance(Application::class, $app = m::mock(Application::class));
-        $app->shouldReceive('getNamespace')->andReturn('App\\');
+        $app = Double::for(Application::class, override: true);
+        $app->allows('getNamespace')->returns('App\\');
+        $container->instance(Application::class, $app->instance());
 
         $db = new DB;
 
@@ -104,9 +108,8 @@ class DatabaseEloquentFactoryTest extends TestCase
     {
         $this->schema()->drop('users');
 
+        Factory::flushState();
         Container::setInstance(null);
-
-        parent::tearDown();
     }
 
     public function test_basic_model_can_be_created()
@@ -268,6 +271,13 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertIsArray($posts);
 
         $this->assertCount(10, $posts);
+    }
+
+    public function test_model_attributes_can_be_created_with_a_count_of_zero()
+    {
+        $posts = FactoryTestPostFactory::new()->count(0)->raw();
+
+        $this->assertSame([], $posts);
     }
 
     public function test_after_creating_and_making_callbacks_are_called()
@@ -721,8 +731,9 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function test_resolve_nested_model_name_from_factory()
     {
-        Container::getInstance()->instance(Application::class, $app = m::mock(Application::class));
-        $app->shouldReceive('getNamespace')->andReturn('Illuminate\\Tests\\Database\\Fixtures\\');
+        $app = Double::for(Application::class, override: true);
+        $app->expects('getNamespace')->returns('Illuminate\\Tests\\Database\\Fixtures\\');
+        Container::getInstance()->instance(Application::class, $app->instance());
 
         Factory::useNamespace('Illuminate\\Tests\\Database\\Fixtures\\Factories\\');
 
@@ -733,8 +744,9 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function test_resolve_non_app_nested_model_factories()
     {
-        Container::getInstance()->instance(Application::class, $app = m::mock(Application::class));
-        $app->shouldReceive('getNamespace')->andReturn('Foo\\');
+        $app = Double::for(Application::class, override: true);
+        $app->allows('getNamespace')->returns('Foo\\');
+        Container::getInstance()->instance(Application::class, $app->instance());
 
         Factory::useNamespace('Factories\\');
 
@@ -834,8 +846,6 @@ class DatabaseEloquentFactoryTest extends TestCase
         $post = FactoryTestPostFactory::new()->trashed($deleted_at)->create();
 
         $this->assertTrue($deleted_at->equalTo($post->deleted_at));
-
-        Carbon::setTestNow();
     }
 
     public function test_dynamic_trashed_state_respects_existing_state()
@@ -845,8 +855,6 @@ class DatabaseEloquentFactoryTest extends TestCase
         $comment = FactoryTestCommentFactory::new()->trashed()->create();
 
         $this->assertTrue($comment->deleted_at->equalTo($now->subWeek()));
-
-        Carbon::setTestNow();
     }
 
     public function test_dynamic_trashed_state_throws_exception_when_not_a_softdeletes_model()
@@ -955,6 +963,24 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame(3, FactoryTestPost::count());
     }
 
+    public function test_recycled_models_do_not_leak_into_later_calls_on_the_same_factory()
+    {
+        Factory::guessFactoryNamesUsing(function ($model) {
+            return $model.'Factory';
+        });
+
+        $user = FactoryTestUserFactory::new()->create();
+
+        $factory = FactoryTestPostFactory::new()
+            ->has(FactoryTestCommentFactory::new()->count(2), 'comments');
+
+        $factory->recycle($user)->create();
+        $post = $factory->create();
+
+        $this->assertCount(2, $post->comments);
+        $this->assertNotContains($user->id, $post->comments->pluck('user_id'));
+    }
+
     public function test_no_models_can_be_provided_to_recycle()
     {
         Factory::guessFactoryNamesUsing(function ($model) {
@@ -1006,7 +1032,8 @@ class DatabaseEloquentFactoryTest extends TestCase
             ->make();
 
         $this->assertNull($comment->user_id);
-        $this->assertNull($comment->commentable->id);
+        $this->assertNull($comment->commentable);
+        $this->assertNull($comment->commentable?->id);
     }
 
     public function test_can_default_to_without_parents()
@@ -1108,12 +1135,19 @@ class DatabaseEloquentFactoryTest extends TestCase
             ->insert();
         $this->assertCount(5, $posts = FactoryTestPost::query()->where('title', 'hello')->get());
         $this->assertEquals(strtoupper($posts[0]->user->name), $posts[0]->upper_case_name);
-        $this->assertEquals(
+        $this->assertCount(
             2,
-            ($users = FactoryTestUser::query()->get())->count()
+            $users = FactoryTestUser::query()->get()
         );
         $this->assertCount(1, $users->where('name', 'totwell'));
         $this->assertCount(1, $users->where('name', 'shaedrich'));
+    }
+
+    public function test_factory_can_insert_zero_models()
+    {
+        (new FactoryTestPostFactory())->count(0)->insert();
+
+        $this->assertCount(0, FactoryTestPost::all());
     }
 
     public function test_factory_can_insert_with_hidden()
@@ -1174,6 +1208,11 @@ class FactoryTestUserFactory extends Factory
 class FactoryTestUser extends Eloquent
 {
     use HasFactory;
+
+    protected static function newFactory()
+    {
+        return FactoryTestUserFactory::new();
+    }
 
     protected $table = 'users';
     protected $hidden = ['options'];

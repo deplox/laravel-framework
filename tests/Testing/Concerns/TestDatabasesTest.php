@@ -6,26 +6,28 @@ use Illuminate\Config\Repository as Config;
 use Illuminate\Container\Container;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\Concerns\TestDatabases;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
 class TestDatabasesTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
-        parent::setUp();
-
         Container::setInstance($container = new Container);
 
+        DB::clearResolvedInstance();
+        DB::setFacadeApplication(null);
+
         $container->singleton('config', function () {
-            return m::mock(Config::class)
-                ->shouldReceive('get')
-                ->once()
-                ->with('database.default', null)
-                ->andReturn('mysql')
-                ->getMock();
+            $config = Double::for(Config::class);
+            $config->expects('get')->with('database.default', null)->returns('mysql');
+
+            return $config;
         });
 
         $_SERVER['LARAVEL_PARALLEL_TESTING'] = 1;
@@ -33,15 +35,11 @@ class TestDatabasesTest extends TestCase
 
     public function testSwitchToDatabaseWithoutUrl()
     {
-        DB::shouldReceive('purge')->once();
+        DB::expects('purge');
 
-        config()->shouldReceive('get')
-            ->once()
-            ->with('database.connections.mysql.url', false)
-            ->andReturn(false);
+        config()->expects('get')->with('database.connections.mysql.url', null)->returns(false);
 
-        config()->shouldReceive('set')
-            ->once()
+        config()->expects('set')
             ->with('database.connections.mysql.database', 'my_database_test_1');
 
         $this->switchToDatabase('my_database_test_1');
@@ -50,15 +48,11 @@ class TestDatabasesTest extends TestCase
     #[DataProvider('databaseUrls')]
     public function testSwitchToDatabaseWithUrl($testDatabase, $url, $testUrl)
     {
-        DB::shouldReceive('purge')->once();
+        DB::expects('purge');
 
-        config()->shouldReceive('get')
-            ->once()
-            ->with('database.connections.mysql.url', false)
-            ->andReturn($url);
+        config()->expects('get')->with('database.connections.mysql.url', null)->returns($url);
 
-        config()->shouldReceive('set')
-            ->once()
+        config()->expects('set')
             ->with('database.connections.mysql.url', $testUrl);
 
         $this->switchToDatabase($testDatabase);
@@ -103,7 +97,5 @@ class TestDatabasesTest extends TestCase
         DB::setFacadeApplication(null);
 
         unset($_SERVER['LARAVEL_PARALLEL_TESTING']);
-
-        parent::tearDown();
     }
 }

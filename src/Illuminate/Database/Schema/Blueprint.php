@@ -54,21 +54,21 @@ class Blueprint
     /**
      * The storage engine that should be used for the table.
      *
-     * @var string
+     * @var string|null
      */
     public $engine;
 
     /**
      * The default character set that should be used for the table.
      *
-     * @var string
+     * @var string|null
      */
     public $charset;
 
     /**
      * The collation that should be used for the table.
      *
-     * @var string
+     * @var string|null
      */
     public $collation;
 
@@ -491,6 +491,17 @@ class Blueprint
     public function dropSpatialIndex($index)
     {
         return $this->dropIndexCommand('dropSpatialIndex', 'spatialIndex', $index);
+    }
+
+    /**
+     * Indicate that the given vector index should be dropped.
+     *
+     * @param  string|array  $index
+     * @return \Illuminate\Support\Fluent
+     */
+    public function dropVectorIndex($index)
+    {
+        return $this->dropIndexCommand('dropVectorIndex', 'vectorIndex', $index);
     }
 
     /**
@@ -1059,7 +1070,7 @@ class Blueprint
 
         $column = $column ?: $model->getForeignKey();
 
-        if ($model->getKeyType() === 'int') {
+        if (in_array($model->getKeyType(), ['int', 'integer'])) {
             return $this->foreignId($column)
                 ->table($model->getTable())
                 ->referencesModelColumn($model->getKeyName());
@@ -1090,6 +1101,24 @@ class Blueprint
         }
 
         return $this->foreignUuid($column ?: $model->getForeignKey())
+            ->table($model->getTable())
+            ->referencesModelColumn($model->getKeyName());
+    }
+
+    /**
+     * Create a foreign ULID column for the given model.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model|string  $model
+     * @param  string|null  $column
+     * @return \Illuminate\Database\Schema\ForeignIdColumnDefinition
+     */
+    public function foreignUlidFor($model, $column = null)
+    {
+        if (is_string($model)) {
+            $model = new $model;
+        }
+
+        return $this->foreignUlid($column ?: $model->getForeignKey())
             ->table($model->getTable())
             ->referencesModelColumn($model->getKeyName());
     }
@@ -1424,7 +1453,7 @@ class Blueprint
     }
 
     /**
-     * Create a new UUID column on the table with a foreign key constraint.
+     * Create a new UUID foreign ID column on the table.
      *
      * @param  string  $column
      * @return \Illuminate\Database\Schema\ForeignIdColumnDefinition
@@ -1450,7 +1479,7 @@ class Blueprint
     }
 
     /**
-     * Create a new ULID column on the table with a foreign key constraint.
+     * Create a new ULID foreign ID column on the table.
      *
      * @param  string  $column
      * @param  int|null  $length
