@@ -2,8 +2,6 @@
 
 namespace Illuminate\Tests\Integration\Generators;
 
-use Illuminate\Support\Carbon;
-
 class ModelMakeCommandTest extends TestCase
 {
     protected $files = [

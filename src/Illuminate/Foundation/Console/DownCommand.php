@@ -3,7 +3,6 @@
 namespace Illuminate\Foundation\Console;
 
 use App\Middleware\PreventRequestsDuringMaintenance as AppPreventRequestsDuringMaintenance;
-use DateTimeInterface;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Events\MaintenanceModeEnabled;

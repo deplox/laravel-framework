@@ -17,7 +17,6 @@ use Illuminate\Http\Middleware\PrefersJsonResponses;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\View;
 
 class ApplicationBuilder
 {

@@ -137,6 +137,8 @@ New migrations are named `<unix-timestamp>_<name>.php` (e.g. `1746280953_create_
 - `src/Illuminate/Foundation/Console/VendorPublishCommand.php:360,365` — regex accepts both legacy `\d{4}_\d{2}_\d{2}_\d{6}_` and new `\d{10,}_` prefixes; **published filenames are rewritten to the unix-timestamp format** so vendor migrations match the fork's convention
 - `src/Illuminate/Foundation/Console/ApiInstallCommand.php:130` — Sanctum migration detection regex accepts both prefixes; without this, `install:api` would re-publish the Sanctum migration on every run
 
+**Same-second collisions.** Upstream (v13.42.0+) increments the prefix by a second when several migrations are generated within the same second (`MigrationCreator::getDatePrefix()` globs the target path). The fork deliberately does not: `getDatePrefix()` returns `time()`, so two migrations generated in the same second share a prefix and are ordered by filename. The upstream tests that assert the per-second increment (`testMigrationsCreatedWithinTheSameSecondHaveIncreasingDatePrefixes`, `testItPreservesMigrationGenerationOrderForModelsCreatedWithinTheSameSecond`) were removed from the fork. Likewise the `0001_01_01_*` default-migration checks added to the `*TableCommand` classes upstream are not ported; the fork keeps the simple `*_create_<table>_table.php` glob.
+
 **Backward compatibility.** Existing migrations with the `Y_m_d_His` prefix continue to run. The Migrator resolves class names by detecting the prefix length, and `VendorPublishCommand` handles both forms when renaming published stubs.
 
 #### 2b. No `down()` method in stubs
