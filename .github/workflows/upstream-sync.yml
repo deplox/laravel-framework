@@ -64,7 +64,7 @@ jobs:
         if: ${{ github.event.inputs.branch == '' || github.event.inputs.branch == matrix.branch }}
         run: |
           git remote add upstream https://github.com/laravel/framework.git
-          git fetch upstream 13.x --tags --no-recurse-submodules --prune
+          git fetch upstream +13.x:refs/remotes/upstream/13.x --tags --no-recurse-submodules --prune
 
       - name: Pick upstream tag to sync
         id: pick
@@ -79,6 +79,9 @@ jobs:
             TAG=""
             while IFS= read -r t; do
               [ -z "$t" ] && continue
+              # Only consider tags that live on upstream's 13.x history. Early v13.0.0-v13.15.0 release
+              # commits are not reachable from 13.x; merging them would import ~37k unrelated commits.
+              git merge-base --is-ancestor "$t" refs/remotes/upstream/13.x 2>/dev/null || continue
               if ! git merge-base --is-ancestor "$t" HEAD 2>/dev/null; then
                 TAG="$t"
                 break
