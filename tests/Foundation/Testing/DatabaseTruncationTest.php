@@ -3,17 +3,20 @@
 namespace Illuminate\Tests\Foundation\Testing;
 
 use Illuminate\Config\Repository;
-use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Connection;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\Schema\Builder;
 use Illuminate\Database\Schema\PostgresBuilder;
+use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\TestCase;
 
 class DatabaseTruncationTest extends TestCase
 {
     use DatabaseTruncation;
+    use VerifiesDoubles;
 
     private ?array $app;
 
@@ -23,8 +26,6 @@ class DatabaseTruncationTest extends TestCase
 
     protected function setUp(): void
     {
-        parent::setUp();
-
         $this->app['config'] = new Repository([
             'database' => [
                 'migrations' => [
@@ -40,8 +41,6 @@ class DatabaseTruncationTest extends TestCase
         static::$allTables = [];
         $this->tablesToTruncate = null;
         $this->exceptTables = null;
-
-        parent::tearDown();
     }
 
     public function testTruncateTables()
@@ -180,33 +179,31 @@ class DatabaseTruncationTest extends TestCase
     ): Connection {
         $actual = [];
 
-        $schema = m::mock($builder ?? Builder::class);
-        $schema->shouldReceive('getTables')->with($schemas)->once()->andReturn(
-            empty($schemas)
+        $schema = Double::for($builder ?? Builder::class);
+        $schema->expects('getTables')->with($schemas)->returns(empty($schemas)
                 ? $allTables
-                : array_filter($allTables, fn ($table) => in_array($table['schema'], $schemas))
-        );
-        $schema->shouldReceive('getCurrentSchemaListing')->once()->andReturn($schemas);
+                : array_filter($allTables, fn ($table) => in_array($table['schema'], $schemas)));
+        $schema->expects('getCurrentSchemaListing')->returns($schemas);
 
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
-        $connection->shouldReceive('getEventDispatcher')->once()->andReturn($dispatcher = m::mock(Dispatcher::class));
-        $connection->shouldReceive('unsetEventDispatcher')->once();
-        $connection->shouldReceive('setEventDispatcher')->once()->with($dispatcher);
-        $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($schema);
-        $connection->shouldReceive('withoutTablePrefix')->andReturnUsing(function ($callback) use ($connection) {
+        $connection = Double::for(Connection::class);
+        $connection->allows('getTablePrefix')->returns($prefix);
+        $dispatcher = new Dispatcher;
+        $connection->expects('getEventDispatcher')->returns($dispatcher);
+        $connection->expects('unsetEventDispatcher');
+        $connection->expects('setEventDispatcher')->with($dispatcher);
+        $connection->expects('getSchemaBuilder')->returns($schema);
+        $connection->allows('withoutTablePrefix')->resolves(function ($callback) use ($connection) {
             $callback($connection);
         });
-        $connection->shouldReceive('table')
-            ->andReturnUsing(function (string $tableName) use (&$actual) {
-                $actual[] = $tableName;
+        $connection->allows('table')->resolves(function (string $tableName) use (&$actual) {
+            $actual[] = $tableName;
 
-                $table = m::mock();
-                $table->shouldReceive('exists')->andReturnTrue();
-                $table->shouldReceive('truncate');
+            $table = Double::for(QueryBuilder::class);
+            $table->expects('exists')->returns(true);
+            $table->expects('truncate');
 
-                return $table;
-            });
+            return $table;
+        });
 
         return $connection;
     }

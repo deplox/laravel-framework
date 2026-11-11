@@ -4,11 +4,14 @@ namespace Illuminate\Tests\Support;
 
 use Exception;
 use Illuminate\Support\Timebox;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\TestCase;
 
 class SupportTimeboxTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testMakeExecutesCallback()
     {
         $callback = function () {
@@ -20,67 +23,67 @@ class SupportTimeboxTest extends TestCase
 
     public function testMakeWaitsForMicroseconds()
     {
-        $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
-        $mock->shouldReceive('usleep')->once();
+        $mock = Double::for(Timebox::class)->passthru();
+        $mock->expects('usleep');
 
         $mock->call(function () {
         }, 10000);
 
-        $mock->shouldHaveReceived('usleep')->once();
+        $mock->received('usleep')->times(1);
     }
 
     public function testMakeShouldNotSleepWhenEarlyReturnHasBeenFlagged()
     {
-        $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
+        $mock = Double::for(Timebox::class)->passthru();
         $mock->call(function ($timebox) {
             $timebox->returnEarly();
         }, 10000);
 
-        $mock->shouldNotHaveReceived('usleep');
+        $mock->received('usleep')->never();
     }
 
     public function testMakeShouldSleepWhenDontEarlyReturnHasBeenFlagged()
     {
-        $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
-        $mock->shouldReceive('usleep')->once();
+        $mock = Double::for(Timebox::class)->passthru();
+        $mock->expects('usleep');
 
         $mock->call(function ($timebox) {
             $timebox->returnEarly();
             $timebox->dontReturnEarly();
         }, 10000);
 
-        $mock->shouldHaveReceived('usleep')->once();
+        $mock->received('usleep')->times(1);
     }
 
     public function testMakeWaitsForMicrosecondsWhenExceptionIsThrown()
     {
-        $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
-        $mock->shouldReceive('usleep')->once();
+        $mock = Double::for(Timebox::class)->passthru();
+        $mock->expects('usleep');
 
         try {
-            $this->expectExceptionMessage('Exception within Timebox callback.');
+            $this->expectExceptionObject(new Exception('Exception within Timebox callback.'));
 
             $mock->call(function () {
                 throw new Exception('Exception within Timebox callback.');
             }, 10000);
         } finally {
-            $mock->shouldHaveReceived('usleep')->once();
+            $mock->received('usleep')->times(1);
         }
     }
 
     public function testMakeShouldNotSleepWhenEarlyReturnHasBeenFlaggedAndExceptionIsThrown()
     {
-        $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
+        $mock = Double::for(Timebox::class)->passthru();
 
         try {
-            $this->expectExceptionMessage('Exception within Timebox callback.');
+            $this->expectExceptionObject(new Exception('Exception within Timebox callback.'));
 
             $mock->call(function ($timebox) {
                 $timebox->returnEarly();
                 throw new Exception('Exception within Timebox callback.');
             }, 10000);
         } finally {
-            $mock->shouldNotHaveReceived('usleep');
+            $mock->received('usleep')->never();
         }
     }
 }

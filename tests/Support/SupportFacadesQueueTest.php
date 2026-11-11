@@ -5,21 +5,23 @@ namespace Illuminate\Tests\Support;
 use Illuminate\Bus\Queueable;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Queue\Factory as QueueContract;
+use Illuminate\Contracts\Queue\Queue as QueueInterface;
 use Illuminate\Support\Facades\Facade;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Testing\Fakes\QueueFake;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\TestCase;
 
 class SupportFacadesQueueTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private $queueManager;
 
     protected function setUp(): void
     {
-        parent::setUp();
-
-        $this->queueManager = m::mock(Factory::class);
+        $this->queueManager = Double::for(QueueContract::class, QueueInterface::class);
 
         $container = new Container;
         $container->instance('queue', $this->queueManager);
@@ -32,8 +34,6 @@ class SupportFacadesQueueTest extends TestCase
     {
         Queue::clearResolvedInstance();
         Queue::setFacadeApplication(null);
-
-        parent::tearDown();
     }
 
     public function testFakeFor()
@@ -44,7 +44,7 @@ class SupportFacadesQueueTest extends TestCase
             Queue::assertPushed(QueueJobStub::class);
         });
 
-        $this->queueManager->shouldReceive('push')->once();
+        $this->queueManager->expects('push');
 
         (new QueueForStub)->pushJob();
     }

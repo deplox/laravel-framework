@@ -3,14 +3,17 @@
 namespace Illuminate\Tests\Cache;
 
 use Illuminate\Cache\MemcachedConnector;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Memcached;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
-use stdClass;
 
 class CacheMemcachedConnectorTest extends TestCase
 {
+    use VerifiesDoubles;
+
+    #[RequiresPhpExtension('memcached')]
     public function testServersAreAddedCorrectly()
     {
         $memcached = $this->memcachedMockWithAddServer();
@@ -25,6 +28,7 @@ class CacheMemcachedConnectorTest extends TestCase
         $this->assertSame($result, $memcached);
     }
 
+    #[RequiresPhpExtension('memcached')]
     public function testServersAreAddedCorrectlyWithPersistentConnection()
     {
         $persistentConnectionId = 'persistent_connection_id';
@@ -51,7 +55,7 @@ class CacheMemcachedConnectorTest extends TestCase
         ];
 
         $memcached = $this->memcachedMockWithAddServer();
-        $memcached->shouldReceive('setOptions')->once()->andReturn(true);
+        $memcached->expects('setOptions')->returns(true);
 
         $connector = $this->connectorMock();
         $connector->expects($this->once())
@@ -66,13 +70,15 @@ class CacheMemcachedConnectorTest extends TestCase
     #[RequiresPhpExtension('memcached')]
     public function testServersAreAddedCorrectlyWithSaslCredentials()
     {
+        if (! method_exists(Memcached::class, 'setSaslAuthData')) {
+            $this->markTestSkipped('The memcached extension was built without SASL support.');
+        }
+
         $saslCredentials = ['foo', 'bar'];
 
         $memcached = $this->memcachedMockWithAddServer();
-        $memcached->shouldReceive('setOption')->once()->with(Memcached::OPT_BINARY_PROTOCOL, true)->andReturn(true);
-        $memcached->shouldReceive('setSaslAuthData')
-            ->once()->with($saslCredentials[0], $saslCredentials[1])
-            ->andReturn(true);
+        $memcached->expects('setOption')->with(Memcached::OPT_BINARY_PROTOCOL, true)->returns(true);
+        $memcached->expects('setSaslAuthData')->with($saslCredentials[0], $saslCredentials[1])->returns(true);
 
         $connector = $this->connectorMock();
         $connector->expects($this->once())->method('createMemcachedInstance')->willReturn($memcached);
@@ -84,9 +90,9 @@ class CacheMemcachedConnectorTest extends TestCase
 
     protected function memcachedMockWithAddServer($returnedVersion = [])
     {
-        $memcached = m::mock(stdClass::class);
-        $memcached->shouldReceive('addServer')->once()->with($this->getHost(), $this->getPort(), $this->getWeight());
-        $memcached->shouldReceive('getServerList')->once()->andReturn([]);
+        $memcached = Double::for(Memcached::class);
+        $memcached->expects('addServer')->with($this->getHost(), $this->getPort(), $this->getWeight());
+        $memcached->expects('getServerList')->returns([]);
 
         return $memcached;
     }

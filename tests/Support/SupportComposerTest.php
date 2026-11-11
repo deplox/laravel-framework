@@ -4,7 +4,8 @@ namespace Illuminate\Tests\Support;
 
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Composer;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
 
@@ -12,6 +13,8 @@ use function Illuminate\Support\php_binary;
 
 class SupportComposerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testDumpAutoloadRunsTheCorrectCommand()
     {
         $composer = $this->mockComposer(['composer', 'dump-autoload']);
@@ -61,11 +64,11 @@ class SupportComposerTest extends TestCase
     {
         $directory = __DIR__;
 
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->once()->with($directory.'/composer.phar')->andReturn($customComposerPhar);
+        $files = Double::for(Filesystem::class);
+        $files->expects('exists')->with($directory.'/composer.phar')->returns($customComposerPhar);
 
-        $process = m::mock(Process::class);
-        $process->shouldReceive('run')->once();
+        $process = Double::for(Process::class);
+        $process->expects('run');
 
         $composer = $this->getMockBuilder(Composer::class)
             ->onlyMethods(['getProcess'])

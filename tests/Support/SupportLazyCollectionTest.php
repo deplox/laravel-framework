@@ -9,11 +9,15 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Sleep;
 use InvalidArgumentException;
-use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
 class SupportLazyCollectionTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+    }
+
     public function testCanCreateEmptyCollection()
     {
         $this->assertSame([], LazyCollection::make()->all());
@@ -39,13 +43,13 @@ class SupportLazyCollectionTest extends TestCase
     {
         $array = [1, 2, 3];
 
-        $data = LazyCollection::make(Collection::make($array));
+        $data = LazyCollection::make(new Collection($array));
 
         $this->assertSame($array, $data->all());
 
         $array = ['a' => 1, 'b' => 2, 'c' => 3];
 
-        $data = LazyCollection::make(Collection::make($array));
+        $data = LazyCollection::make(new Collection($array));
 
         $this->assertSame($array, $data->all());
     }
@@ -184,24 +188,13 @@ class SupportLazyCollectionTest extends TestCase
     {
         $timeout = Carbon::now();
 
-        $mock = m::mock(LazyCollection::class.'[now]');
-
         $timedOutWith = [];
 
-        $results = $mock
-            ->times(10)
-            ->tap(function ($collection) use ($mock, $timeout) {
-                tap($collection)
-                    ->mockery_init($mock->mockery_getContainer())
-                    ->shouldAllowMockingProtectedMethods()
-                    ->shouldReceive('now')
-                    ->times(3)
-                    ->andReturn(
-                        (clone $timeout)->sub(2, 'minute')->getTimestamp(),
-                        (clone $timeout)->sub(1, 'minute')->getTimestamp(),
-                        $timeout->getTimestamp()
-                    );
-            })
+        Carbon::setTestNow((clone $timeout)->sub(2, 'minute'));
+
+        // The clock moves forward one minute for each item, reaching the timeout on the second.
+        $results = LazyCollection::times(10)
+            ->tapEach(fn ($number) => Carbon::setTestNow((clone $timeout)->sub(2 - $number, 'minute')))
             ->takeUntilTimeout($timeout, function ($value, $key) use (&$timedOutWith) {
                 $timedOutWith = [$value, $key];
             })
@@ -278,7 +271,6 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame([1, 2, 3], $data);
 
         Sleep::fake(false);
-        Carbon::setTestNow();
     }
 
     public function testUniqueDoubleEnumeration()
@@ -509,8 +501,6 @@ class SupportLazyCollectionTest extends TestCase
             ],
             $output->all(),
         );
-
-        Carbon::setTestNow();
     }
 
     public function testRandomPreservesKeys()

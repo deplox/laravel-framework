@@ -4,11 +4,14 @@ namespace Illuminate\Tests\Pagination;
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\AbstractPaginator;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\TestCase;
 
 class PaginatorLoadMorphCountTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCollectionLoadMorphCountCanChainOnThePaginator()
     {
         $relations = [
@@ -16,8 +19,8 @@ class PaginatorLoadMorphCountTest extends TestCase
             'App\\Company' => ['employees', 'calendars'],
         ];
 
-        $items = m::mock(Collection::class);
-        $items->shouldReceive('loadMorphCount')->once()->with('parentable', $relations);
+        $items = Double::for(Collection::class);
+        $items->expects('loadMorphCount')->with('parentable', $relations);
 
         $p = (new class extends AbstractPaginator {
         })->setCollection($items);

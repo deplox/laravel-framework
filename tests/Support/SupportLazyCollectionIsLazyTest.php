@@ -8,13 +8,17 @@ use Illuminate\Support\ItemNotFoundException;
 use Illuminate\Support\LazyCollection;
 use Illuminate\Support\MultipleItemsFoundException;
 use Illuminate\Support\Sleep;
-use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
 class SupportLazyCollectionIsLazyTest extends TestCase
 {
     use Concerns\CountsEnumerations;
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+    }
 
     public function testMakeWithClosureIsLazy()
     {
@@ -73,6 +77,23 @@ class SupportLazyCollectionIsLazyTest extends TestCase
             $collection->chunkWhile(function ($current, $key, $chunk) {
                 return $current === $chunk->last();
             })->all();
+        });
+    }
+
+    public function testChunkByIsLazy()
+    {
+        $collection = LazyCollection::make(['A', 'A', 'B', 'B', 'C', 'C', 'C']);
+
+        $this->assertDoesNotEnumerateCollection($collection, function ($collection) {
+            $collection->chunkBy(fn ($value) => $value);
+        });
+
+        $this->assertEnumeratesCollection($collection, 3, function ($collection) {
+            $collection->chunkBy(fn ($value) => $value)->first();
+        });
+
+        $this->assertEnumeratesCollectionOnce($collection, function ($collection) {
+            $collection->chunkBy(fn ($value) => $value)->all();
         });
     }
 
@@ -1314,65 +1335,26 @@ class SupportLazyCollectionIsLazyTest extends TestCase
 
     public function testTakeUntilTimeoutIsLazy()
     {
-        tap(m::mock(LazyCollection::class.'[now]')->times(100), function ($mock) {
-            $this->assertDoesNotEnumerateCollection($mock, function ($mock) {
-                $timeout = Carbon::now();
+        $timeout = Carbon::now();
 
-                $results = $mock
-                    ->tap(function ($collection) use ($mock, $timeout) {
-                        tap($collection)
-                            ->mockery_init($mock->mockery_getContainer())
-                            ->shouldAllowMockingProtectedMethods()
-                            ->shouldReceive('now')
-                            ->times(1)
-                            ->andReturn(
-                                $timeout->getTimestamp()
-                            );
-                    })
-                    ->takeUntilTimeout($timeout)
-                    ->all();
-            });
+        Carbon::setTestNow($timeout);
+
+        $this->assertDoesNotEnumerateCollection(LazyCollection::times(100), function ($collection) use ($timeout) {
+            $collection->takeUntilTimeout($timeout)->all();
         });
 
-        tap(m::mock(LazyCollection::class.'[now]')->times(100), function ($mock) {
-            $this->assertEnumeratesCollection($mock, 1, function ($mock) {
-                $timeout = Carbon::now();
+        Carbon::setTestNow((clone $timeout)->sub(1, 'minute'));
 
-                $results = $mock
-                    ->tap(function ($collection) use ($mock, $timeout) {
-                        tap($collection)
-                            ->mockery_init($mock->mockery_getContainer())
-                            ->shouldAllowMockingProtectedMethods()
-                            ->shouldReceive('now')
-                            ->times(2)
-                            ->andReturn(
-                                (clone $timeout)->sub(1, 'minute')->getTimestamp(),
-                                $timeout->getTimestamp()
-                            );
-                    })
-                    ->takeUntilTimeout($timeout)
-                    ->all();
-            });
+        $source = LazyCollection::times(100)->tapEach(fn () => Carbon::setTestNow($timeout));
+
+        $this->assertEnumeratesCollection($source, 1, function ($collection) use ($timeout) {
+            $collection->takeUntilTimeout($timeout)->all();
         });
 
-        tap(m::mock(LazyCollection::class.'[now]')->times(100), function ($mock) {
-            $this->assertEnumeratesCollectionOnce($mock, function ($mock) {
-                $timeout = Carbon::now();
+        Carbon::setTestNow((clone $timeout)->sub(1, 'minute'));
 
-                $results = $mock
-                    ->tap(function ($collection) use ($mock, $timeout) {
-                        tap($collection)
-                            ->mockery_init($mock->mockery_getContainer())
-                            ->shouldAllowMockingProtectedMethods()
-                            ->shouldReceive('now')
-                            ->times(100)
-                            ->andReturn(
-                                (clone $timeout)->sub(1, 'minute')->getTimestamp()
-                            );
-                    })
-                    ->takeUntilTimeout($timeout)
-                    ->all();
-            });
+        $this->assertEnumeratesCollectionOnce(LazyCollection::times(100), function ($collection) use ($timeout) {
+            $collection->takeUntilTimeout($timeout)->all();
         });
     }
 

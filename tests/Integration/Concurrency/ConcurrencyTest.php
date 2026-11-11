@@ -8,11 +8,14 @@ use Illuminate\Concurrency\SyncDriver;
 use Illuminate\Foundation\Application;
 use Illuminate\Process\Factory as ProcessFactory;
 use Illuminate\Support\Facades\Concurrency;
+use Illuminate\Support\Facades\Context;
+use Orchestra\Testbench\Attributes\WithEnv;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 
 #[RequiresOperatingSystem('Linux|Darwin')]
+#[WithEnv('APP_KEY', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
 class ConcurrencyTest extends TestCase
 {
     protected function setUp(): void
@@ -93,10 +96,16 @@ PHP);
     {
         $factory = $this->app->make(ProcessFactory::class);
 
-        $factory->fake(fn () => $factory->result(json_encode([
-            'successful' => true,
-            'result' => serialize('result'),
-        ])));
+        $factory->fake(function ($process) use ($factory) {
+            $encoded = base64_encode(json_encode([
+                'successful' => true,
+                'result' => serialize('result'),
+            ]));
+
+            $signature = hash_hmac('sha256', $encoded, $process->environment['LARAVEL_CONCURRENCY_HMAC_KEY']);
+
+            return $factory->result("\n@@LARAVEL-CONCURRENCY-V1@@{$encoded}@@{$signature}@@\n");
+        });
 
         $result = (new ProcessDriver($factory))->run([
             fn () => 'result',
@@ -119,8 +128,7 @@ PHP);
 
     public function testRunHandlerProcessErrorWithDefaultExceptionWithoutParam()
     {
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('This is a different exception');
+        $this->expectExceptionObject(new Exception('This is a different exception'));
 
         Concurrency::run([
             fn () => throw new Exception(
@@ -131,8 +139,7 @@ PHP);
 
     public function testRunHandlerProcessErrorWithCustomExceptionWithoutParam()
     {
-        $this->expectException(ExceptionWithoutParam::class);
-        $this->expectExceptionMessage('Test');
+        $this->expectExceptionObject(new ExceptionWithoutParam('Test'));
         Concurrency::run([
             fn () => throw new ExceptionWithoutParam('Test'),
         ]);
@@ -150,6 +157,59 @@ PHP);
                 'Invalid payload'
             ),
         ]);
+    }
+
+    #[DataProvider('falseyExceptionParameters')]
+    public function testRunHandlerProcessErrorWithFalseyParam(int|bool|string $value)
+    {
+        try {
+            Concurrency::run([
+                fn () => throw new ExceptionWithFalseyParam($value),
+            ]);
+        } catch (ExceptionWithFalseyParam $e) {
+            $this->assertSame($value, $e->value);
+
+            return;
+        }
+
+        $this->fail('The expected exception was not thrown.');
+    }
+
+    public static function falseyExceptionParameters(): array
+    {
+        return [
+            'zero' => [0],
+            'false' => [false],
+            'empty string' => [''],
+        ];
+    }
+
+    public function testContextIsPropagatedToConcurrentProcesses()
+    {
+        Context::add('task', 'concurrency');
+        Context::addHidden('token', 'secret');
+
+        [$task, $token] = Concurrency::driver('process')->run([
+            fn () => Context::get('task'),
+            fn () => Context::getHidden('token'),
+        ]);
+
+        $this->assertSame('concurrency', $task);
+        $this->assertSame('secret', $token);
+    }
+
+    public function testContextIsPropagatedToDeferredConcurrentProcesses()
+    {
+        $this->withoutDefer();
+
+        Context::add('task', 'concurrency');
+
+        $factory = $this->app->make(ProcessFactory::class);
+        $factory->fake();
+
+        (new ProcessDriver($factory))->defer([fn () => 'result']);
+
+        $factory->assertRan(fn ($process) => ($process->environment['__LARAVEL_CONTEXT'] ?? null) === json_encode(Context::dehydrate()));
     }
 
     public static function getConcurrencyDrivers(): array
@@ -207,5 +267,13 @@ class ExceptionWithParam extends Exception
         public string|array $responseBody = '',
     ) {
         parent::__construct("API request to {$uri} failed with status $statusCode $reason");
+    }
+}
+
+class ExceptionWithFalseyParam extends Exception
+{
+    public function __construct(public int|bool|string $value)
+    {
+        parent::__construct('Exception with falsey parameter');
     }
 }

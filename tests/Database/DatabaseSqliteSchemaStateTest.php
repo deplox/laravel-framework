@@ -5,31 +5,37 @@ namespace Illuminate\Tests\Database;
 use Illuminate\Database\Schema\SqliteSchemaState;
 use Illuminate\Database\SQLiteConnection;
 use Illuminate\Filesystem\Filesystem;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
 
 class DatabaseSqliteSchemaStateTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testLoadSchemaToDatabase(): void
     {
         $config = ['driver' => 'sqlite', 'database' => 'database/database.sqlite', 'prefix' => '', 'foreign_key_constraints' => true, 'name' => 'sqlite'];
-        $connection = m::mock(SQLiteConnection::class);
-        $connection->shouldReceive('getConfig')->andReturn($config);
-        $connection->shouldReceive('getDatabaseName')->andReturn($config['database']);
+        $connection = Double::for(SQLiteConnection::class);
+        $connection->expects('getConfig')->returns($config);
+        $connection->expects('getDatabaseName')->returns($config['database']);
 
-        $process = m::spy(Process::class);
-        $processFactory = m::spy(function () use ($process) {
+        $process = Double::for(Process::class);
+        $command = null;
+        $processFactory = function ($givenCommand) use ($process, &$command) {
+            $command = $givenCommand;
+
             return $process;
-        });
+        };
 
         $schemaState = new SqliteSchemaState($connection, null, $processFactory);
         $schemaState->load('database/schema/sqlite-schema.dump');
 
-        $processFactory->shouldHaveBeenCalled()->with('sqlite3 "${:LARAVEL_LOAD_DATABASE}" < "${:LARAVEL_LOAD_PATH}"');
+        $this->assertSame('sqlite3 "${:LARAVEL_LOAD_DATABASE}" < "${:LARAVEL_LOAD_PATH}"', $command);
 
-        $process->shouldHaveReceived('mustRun')->with(null, [
+        $process->received('mustRun')->with(null, [
             'LARAVEL_LOAD_DATABASE' => 'database/database.sqlite',
             'LARAVEL_LOAD_PATH' => 'database/schema/sqlite-schema.dump',
         ]);
@@ -38,17 +44,56 @@ class DatabaseSqliteSchemaStateTest extends TestCase
     public function testLoadSchemaToInMemory(): void
     {
         $config = ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => true, 'name' => 'sqlite'];
-        $connection = m::mock(SQLiteConnection::class);
-        $connection->shouldReceive('getConfig')->andReturn($config);
-        $connection->shouldReceive('getDatabaseName')->andReturn($config['database']);
-        $connection->shouldReceive('getPdo')->andReturn($pdo = m::spy(PDO::class));
+        $connection = Double::for(SQLiteConnection::class);
+        $connection->expects('getDatabaseName')->returns($config['database']);
+        $pdo = Double::for(PDO::class);
+        $pdo->expects('exec')->returns(0);
+        $connection->expects('getPdo')->returns($pdo);
 
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('get')->andReturn('CREATE TABLE IF NOT EXISTS "migrations" ("id" integer not null primary key autoincrement, "migration" varchar not null, "batch" integer not null);');
+        $files = Double::for(Filesystem::class);
+        $files->expects('get')->returns('CREATE TABLE IF NOT EXISTS "migrations" ("id" integer not null primary key autoincrement, "migration" varchar not null, "batch" integer not null);');
 
         $schemaState = new SqliteSchemaState($connection, $files);
         $schemaState->load('database/schema/sqlite-schema.dump');
 
-        $pdo->shouldHaveReceived('exec')->with('CREATE TABLE IF NOT EXISTS "migrations" ("id" integer not null primary key autoincrement, "migration" varchar not null, "batch" integer not null);');
+        $pdo->received('exec')->with('CREATE TABLE IF NOT EXISTS "migrations" ("id" integer not null primary key autoincrement, "migration" varchar not null, "batch" integer not null);');
+    }
+
+    public function testDumpRemovesShadowTables(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'), config: ['database' => ':memory:']);
+        $connection->statement('create virtual table posts using fts5(body)');
+        $connection->statement('create table "logs_data" ("id" integer primary key)');
+        $connection->statement('create virtual table temp.logs using fts5(message)');
+
+        $process = Double::for(Process::class);
+        $process->expects('setTimeout')->returns($process);
+        $process->expects('mustRun')->returns($process);
+        $process->expects('getOutput')->returns(<<<'SQL'
+            CREATE VIRTUAL TABLE posts using fts5(body)
+            /* posts(body) */;
+            CREATE TABLE IF NOT EXISTS 'posts_data'(id INTEGER PRIMARY KEY, block BLOB);
+            CREATE TABLE IF NOT EXISTS 'posts_idx'(
+              segid,
+              term,
+              pgno,
+              PRIMARY KEY(segid, term)
+            ) WITHOUT ROWID;
+            CREATE TABLE IF NOT EXISTS "logs_data"("id" integer primary key);
+
+            SQL);
+
+        $files = Double::for(Filesystem::class);
+
+        (new SqliteSchemaState($connection, $files, fn () => $process))
+            ->withMigrationTable(null)
+            ->dump($connection, 'schema.sql');
+
+        $files->received('put')->with('schema.sql', <<<'SQL'
+            CREATE VIRTUAL TABLE posts using fts5(body)
+            /* posts(body) */;
+            CREATE TABLE IF NOT EXISTS "logs_data"("id" integer primary key);
+
+            SQL.PHP_EOL);
     }
 }

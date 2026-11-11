@@ -32,13 +32,17 @@ use Illuminate\Filesystem\FilesystemManager;
 use Illuminate\Http\Request;
 use Illuminate\Log\Context\Repository as ContextRepository;
 use Illuminate\Log\LogManager;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PDO;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use ReflectionParameter;
 
 class ContextualAttributeBindingTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testDependencyCanBeResolvedFromAttributeBinding()
     {
         $container = new Container;
@@ -132,29 +136,29 @@ class ContextualAttributeBindingTest extends TestCase
     {
         $container = new Container;
         $container->singleton('auth', function () {
-            $manager = m::mock(AuthManager::class);
-            $manager->shouldReceive('userResolver')->andReturn(fn ($guard = null) => $manager->guard($guard)->user());
-            $manager->shouldReceive('guard')->with('foo')->andReturnUsing(function () {
-                $guard = m::mock(GuardContract::class);
-                $guard->shouldReceive('user')->andReturn(m:mock(AuthenticatableContract::class));
+            $manager = Double::for(AuthManager::class);
+            $manager->expects('userResolver')->times(4)->returns(fn ($guard = null) => $manager->guard($guard)->user());
+            $manager->expects('guard')->with('foo')->resolves(function () {
+                $guard = Double::for(GuardContract::class);
+                $guard->expects('user')->returns(Double::for(AuthenticatableContract::class));
 
                 return $guard;
             });
-            $manager->shouldReceive('guard')->with('bar')->andReturnUsing(function () {
-                $guard = m::mock(GuardContract::class);
-                $guard->shouldReceive('user')->andReturn(m:mock(AuthenticatableContract::class));
+            $manager->expects('guard')->with('bar')->resolves(function () {
+                $guard = Double::for(GuardContract::class);
+                $guard->expects('user')->returns(Double::for(AuthenticatableContract::class));
 
                 return $guard;
             });
-            $manager->shouldReceive('guard')->with(AuthGuardUnitEnum::unit)->andReturnUsing(function () {
-                $guard = m::mock(GuardContract::class);
-                $guard->shouldReceive('user')->andReturn(m:mock(AuthenticatableContract::class));
+            $manager->expects('guard')->with(AuthGuardUnitEnum::unit)->resolves(function () {
+                $guard = Double::for(GuardContract::class);
+                $guard->expects('user')->returns(Double::for(AuthenticatableContract::class));
 
                 return $guard;
             });
-            $manager->shouldReceive('guard')->with(AuthGuardBackedEnum::Backed)->andReturnUsing(function () {
-                $guard = m::mock(GuardContract::class);
-                $guard->shouldReceive('user')->andReturn(m:mock(AuthenticatableContract::class));
+            $manager->expects('guard')->with(AuthGuardBackedEnum::Backed)->resolves(function () {
+                $guard = Double::for(GuardContract::class);
+                $guard->expects('user')->returns(Double::for(AuthenticatableContract::class));
 
                 return $guard;
             });
@@ -169,13 +173,13 @@ class ContextualAttributeBindingTest extends TestCase
     {
         $container = new Container;
         $container->singleton('cache', function () {
-            $manager = m::mock(CacheManager::class);
-            $manager->shouldReceive('store')->with('foo')->andReturn(m::mock(CacheRepository::class));
-            $manager->shouldReceive('store')->with('bar')->andReturn(m::mock(CacheRepository::class));
-            $manager->shouldReceive('store')->with(CacheStoreUnitEnum::unit)->andReturn(m::mock(CacheRepository::class));
-            $manager->shouldReceive('store')->with(CacheStoreBackedEnum::Backed)->andReturn(m::mock(CacheRepository::class));
-            $manager->shouldReceive('memo')->with('foo')->andReturn(m::mock(CacheRepository::class));
-            $manager->shouldReceive('memo')->with('bar')->andReturn(m::mock(CacheRepository::class));
+            $manager = Double::for(CacheManager::class);
+            $manager->expects('store')->with('foo')->returns(Double::for(CacheRepository::class));
+            $manager->expects('store')->with('bar')->returns(Double::for(CacheRepository::class));
+            $manager->expects('store')->with(CacheStoreUnitEnum::unit)->returns(Double::for(CacheRepository::class));
+            $manager->expects('store')->with(CacheStoreBackedEnum::Backed)->returns(Double::for(CacheRepository::class));
+            $manager->expects('memo')->with('foo')->returns(Double::for(CacheRepository::class));
+            $manager->expects('memo')->with('bar')->returns(Double::for(CacheRepository::class));
 
             return $manager;
         });
@@ -186,24 +190,21 @@ class ContextualAttributeBindingTest extends TestCase
     public function testConfigAttribute()
     {
         $container = new Container;
-        $container->singleton('config', function () {
-            $repository = m::mock(Repository::class);
-            $repository->shouldReceive('get')->with('foo', null)->andReturn('foo');
-            $repository->shouldReceive('get')->with('bar', null)->andReturn('bar');
+        $container->singleton('config', fn () => new Repository(['foo' => 'foo', 'bar' => 'bar']));
 
-            return $repository;
-        });
+        $resolved = $container->make(ConfigTest::class);
 
-        $container->make(ConfigTest::class);
+        $this->assertSame('foo', $resolved->foo);
+        $this->assertSame('bar', $resolved->bar);
     }
 
     public function testDatabaseAttribute()
     {
         $container = new Container;
         $container->singleton('db', function () {
-            $manager = m::mock(DatabaseManager::class);
-            $manager->shouldReceive('connection')->with('foo')->andReturn(m::mock(Connection::class));
-            $manager->shouldReceive('connection')->with('bar')->andReturn(m::mock(Connection::class));
+            $manager = Double::for(DatabaseManager::class);
+            $manager->expects('connection')->with('foo')->returns(new Connection(new PDO('sqlite::memory:')));
+            $manager->expects('connection')->with('bar')->returns(new Connection(new PDO('sqlite::memory:')));
 
             return $manager;
         });
@@ -215,11 +216,11 @@ class ContextualAttributeBindingTest extends TestCase
     {
         $container = new Container; //
         $container->singleton('auth', function () {
-            $manager = m::mock(AuthManager::class);
-            $manager->shouldReceive('guard')->with('foo')->andReturn(m::mock(GuardContract::class));
-            $manager->shouldReceive('guard')->with('bar')->andReturn(m::mock(GuardContract::class));
-            $manager->shouldReceive('guard')->with(AuthGuardUnitEnum::unit)->andReturn(m::mock(GuardContract::class));
-            $manager->shouldReceive('guard')->with(AuthGuardBackedEnum::Backed)->andReturn(m::mock(GuardContract::class));
+            $manager = Double::for(AuthManager::class);
+            $manager->expects('guard')->with('foo')->returns(Double::for(GuardContract::class));
+            $manager->expects('guard')->with('bar')->returns(Double::for(GuardContract::class));
+            $manager->expects('guard')->with(AuthGuardUnitEnum::unit)->returns(Double::for(GuardContract::class));
+            $manager->expects('guard')->with(AuthGuardBackedEnum::Backed)->returns(Double::for(GuardContract::class));
 
             return $manager;
         });
@@ -231,9 +232,9 @@ class ContextualAttributeBindingTest extends TestCase
     {
         $container = new Container;
         $container->singleton('log', function () {
-            $manager = m::mock(LogManager::class);
-            $manager->shouldReceive('channel')->with('foo')->andReturn(m::mock(LoggerInterface::class));
-            $manager->shouldReceive('channel')->with('bar')->andReturn(m::mock(LoggerInterface::class));
+            $manager = Double::for(LogManager::class);
+            $manager->expects('channel')->with('foo')->returns(Double::for(LoggerInterface::class));
+            $manager->expects('channel')->with('bar')->returns(Double::for(LoggerInterface::class));
 
             return $manager;
         });
@@ -245,11 +246,11 @@ class ContextualAttributeBindingTest extends TestCase
     {
         $container = new Container;
         $container->singleton('request', function () {
-            $request = m::mock(Request::class);
-            $request->shouldReceive('route')->with('foo')->andReturn(m::mock(Model::class));
-            $request->shouldReceive('route')->with('bar')->andReturn('bar');
+            $request = Double::for(Request::class, override: true);
+            $request->expects('route')->with('foo')->returns(Double::for(Model::class));
+            $request->expects('route')->with('bar')->returns('bar');
 
-            return $request;
+            return $request->instance();
         });
 
         $container->make(RouteParameterTest::class);
@@ -259,11 +260,11 @@ class ContextualAttributeBindingTest extends TestCase
     {
         $container = new Container;
         $container->singleton('request', function () {
-            $request = m::mock(Request::class);
-            $request->shouldReceive('route')->with('foo')->andReturn(m::mock(Model::class));
-            $request->shouldReceive('route')->with('bar')->andReturn('bar');
+            $request = Double::for(Request::class, override: true);
+            $request->expects('route')->with('foo')->returns(Double::for(Model::class));
+            $request->expects('route')->with('bar')->returns('bar');
 
-            return $request;
+            return $request->instance();
         });
 
         $container->make(RouteParameterTestWithoutParameterName::class);
@@ -274,13 +275,15 @@ class ContextualAttributeBindingTest extends TestCase
         $container = new Container;
 
         $container->singleton(ContextRepository::class, function () {
-            $context = m::mock(ContextRepository::class);
-            $context->shouldReceive('get')->once()->with('foo', null)->andReturn('foo');
+            $context = new ContextRepository(new \Illuminate\Events\Dispatcher);
+            $context->add('foo', 'foo');
 
             return $context;
         });
 
-        $container->make(ContextTest::class);
+        $resolved = $container->make(ContextTest::class);
+
+        $this->assertSame('foo', $resolved->foo);
     }
 
     public function testContextAttributeInteractingWithHidden(): void
@@ -288,9 +291,9 @@ class ContextualAttributeBindingTest extends TestCase
         $container = new Container;
 
         $container->singleton(ContextRepository::class, function () {
-            $context = m::mock(ContextRepository::class);
-            $context->shouldReceive('getHidden')->once()->with('bar', null)->andReturn('bar');
-            $context->shouldNotReceive('get');
+            $context = Double::for(ContextRepository::class);
+            $context->expects('getHidden')->with('bar', null)->returns('bar');
+            $context->expects('get')->never();
 
             return $context;
         });
@@ -302,11 +305,11 @@ class ContextualAttributeBindingTest extends TestCase
     {
         $container = new Container;
         $container->singleton('filesystem', function () {
-            $manager = m::mock(FilesystemManager::class);
-            $manager->shouldReceive('disk')->with('foo')->andReturn(m::mock(Filesystem::class));
-            $manager->shouldReceive('disk')->with('bar')->andReturn(m::mock(Filesystem::class));
-            $manager->shouldReceive('disk')->with(StorageDiskUnitEnum::unit)->andReturn(m::mock(Filesystem::class));
-            $manager->shouldReceive('disk')->with(StorageDiskBackedEnum::Backed)->andReturn(m::mock(Filesystem::class));
+            $manager = Double::for(FilesystemManager::class);
+            $manager->expects('disk')->with('foo')->returns(Double::for(Filesystem::class));
+            $manager->expects('disk')->with('bar')->returns(Double::for(Filesystem::class));
+            $manager->expects('disk')->with(StorageDiskUnitEnum::unit)->returns(Double::for(Filesystem::class));
+            $manager->expects('disk')->with(StorageDiskBackedEnum::Backed)->returns(Double::for(Filesystem::class));
 
             return $manager;
         });
@@ -459,29 +462,29 @@ final class ContainerTestImplB implements ContainerTestContract
 {
 }
 
-final class ContainerTestHasAttributeThatResolvesToImplA
+final readonly class ContainerTestHasAttributeThatResolvesToImplA
 {
     public function __construct(
         #[ContainerTestAttributeThatResolvesContractImpl('A')]
-        public readonly ContainerTestContract $property
+        public ContainerTestContract $property
     ) {
     }
 }
 
-final class ContainerTestHasAttributeThatResolvesToImplB
+final readonly class ContainerTestHasAttributeThatResolvesToImplB
 {
     public function __construct(
         #[ContainerTestAttributeThatResolvesContractImpl('B')]
-        public readonly ContainerTestContract $property
+        public ContainerTestContract $property
     ) {
     }
 }
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
-final class ContainerTestConfigValue implements ContextualAttribute
+final readonly class ContainerTestConfigValue implements ContextualAttribute
 {
     public function __construct(
-        public readonly string $key
+        public string $key
     ) {
     }
 }
@@ -496,10 +499,10 @@ final class ContainerTestHasConfigValueProperty
 }
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
-final class ContainerTestConfigValueWithResolve implements ContextualAttribute
+final readonly class ContainerTestConfigValueWithResolve implements ContextualAttribute
 {
     public function __construct(
-        public readonly string $key
+        public string $key
     ) {
     }
 
@@ -561,7 +564,7 @@ final class ComplexDependency implements ContainerTestContract
     }
 }
 
-final class AuthedTest
+final readonly class AuthedTest
 {
     public function __construct(
         #[Authenticated('foo')] AuthenticatableContract $foo,
@@ -572,7 +575,7 @@ final class AuthedTest
     }
 }
 
-final class CacheTest
+final readonly class CacheTest
 {
     public function __construct(
         #[Cache('foo')] CacheRepository $foo,
@@ -585,35 +588,35 @@ final class CacheTest
     }
 }
 
-final class ConfigTest
+final readonly class ConfigTest
 {
-    public function __construct(#[Config('foo')] string $foo, #[Config('bar')] string $bar)
+    public function __construct(#[Config('foo')] public string $foo, #[Config('bar')] public string $bar)
     {
     }
 }
 
-final class ContextTest
+final readonly class ContextTest
 {
-    public function __construct(#[Context('foo')] string $foo)
+    public function __construct(#[Context('foo')] public string $foo)
     {
     }
 }
 
-final class ContextHiddenTest
+final readonly class ContextHiddenTest
 {
     public function __construct(#[Context('bar', hidden: true)] string $foo)
     {
     }
 }
 
-final class DatabaseTest
+final readonly class DatabaseTest
 {
     public function __construct(#[Database('foo')] Connection $foo, #[Database('bar')] Connection $bar)
     {
     }
 }
 
-final class GuardTest
+final readonly class GuardTest
 {
     public function __construct(
         #[Auth('foo')] GuardContract $foo,
@@ -624,28 +627,28 @@ final class GuardTest
     }
 }
 
-final class LogTest
+final readonly class LogTest
 {
     public function __construct(#[Log('foo')] LoggerInterface $foo, #[Log('bar')] LoggerInterface $bar)
     {
     }
 }
 
-final class RouteParameterTest
+final readonly class RouteParameterTest
 {
     public function __construct(#[RouteParameter('foo')] Model $foo, #[RouteParameter('bar')] string $bar)
     {
     }
 }
 
-final class RouteParameterTestWithoutParameterName
+final readonly class RouteParameterTestWithoutParameterName
 {
     public function __construct(#[RouteParameter] Model $foo, #[RouteParameter] string $bar)
     {
     }
 }
 
-final class StorageTest
+final readonly class StorageTest
 {
     public function __construct(
         #[Storage('foo')] Filesystem $foo,
@@ -656,46 +659,46 @@ final class StorageTest
     }
 }
 
-final class GiveTestSimple
+final readonly class GiveTestSimple
 {
     public function __construct(
         #[Give(SimpleDependency::class)]
-        public readonly ContainerTestContract $dependency
+        public ContainerTestContract $dependency
     ) {
     }
 }
 
-final class GiveTestComplex
+final readonly class GiveTestComplex
 {
     public function __construct(
         #[Give(ComplexDependency::class, ['param' => true])]
-        public readonly ContainerTestContract $dependency
+        public ContainerTestContract $dependency
     ) {
     }
 }
 
-final class TimezoneObject
+final readonly class TimezoneObject
 {
     public function __construct(
-        #[Config('app.timezone')] public readonly ?string $timezone
-    ) {
-        //
-    }
-}
-
-final class LocaleObject
-{
-    public function __construct(
-        #[Config('app.locale')] public readonly ?string $locale
+        #[Config('app.timezone')] public ?string $timezone
     ) {
         //
     }
 }
 
-final class HasParameterAwareAttribute
+final readonly class LocaleObject
 {
     public function __construct(
-        #[ContainerTestParameterAwareAttribute] public readonly ?string $name,
+        #[Config('app.locale')] public ?string $locale
+    ) {
+        //
+    }
+}
+
+final readonly class HasParameterAwareAttribute
+{
+    public function __construct(
+        #[ContainerTestParameterAwareAttribute] public ?string $name,
     ) {
         //
     }

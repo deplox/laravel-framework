@@ -247,6 +247,17 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     }
 
     /**
+     * Get the plural form of an English word with the count prepended.
+     *
+     * @param  int|array|\Countable  $count
+     * @return static
+     */
+    public function counted($count)
+    {
+        return new static(Str::counted($this->value, $count));
+    }
+
+    /**
      * Replace consecutive instances of a given character with a single character.
      *
      * @param  array<string>|string  $characters
@@ -1157,7 +1168,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Execute the given callback if the string contains all array values.
      *
-     * @param  iterable<string>  $needles
+     * @param  array<string>  $needles
      * @param  callable  $callback
      * @param  callable|null  $default
      * @return static

@@ -123,7 +123,7 @@ class DynamoDbStore implements LockProvider, Store
 
         $now = Carbon::now();
 
-        return array_merge(
+        return array_replace(
             Arr::mapWithKeys($keys, fn ($key) => [$key => null]),
             (new Collection($response['Responses'][$this->table]))->mapWithKeys(function ($response) use ($now) {
                 if ($this->isExpired($response, $now)) {
@@ -400,6 +400,54 @@ class DynamoDbStore implements LockProvider, Store
     public function restoreLock($name, $owner)
     {
         return $this->lock($name, 0, $owner);
+    }
+
+    /**
+     * Atomically refresh the expiration of a key if it matches the expected owner.
+     *
+     * @param  string  $key
+     * @param  mixed  $expectedOwner
+     * @param  int  $seconds
+     * @return bool
+     */
+    public function refreshIfOwned($key, $expectedOwner, $seconds)
+    {
+        try {
+            $this->dynamo->updateItem([
+                'TableName' => $this->table,
+                'Key' => [
+                    $this->keyAttribute => [
+                        'S' => $this->prefix.$key,
+                    ],
+                ],
+                'ConditionExpression' => 'attribute_exists(#key) AND #value = :owner AND #expires_at > :now',
+                'UpdateExpression' => 'SET #expires_at = :expires_at',
+                'ExpressionAttributeNames' => [
+                    '#key' => $this->keyAttribute,
+                    '#value' => $this->valueAttribute,
+                    '#expires_at' => $this->expirationAttribute,
+                ],
+                'ExpressionAttributeValues' => [
+                    ':owner' => [
+                        $this->type($expectedOwner) => $this->serialize($expectedOwner),
+                    ],
+                    ':now' => [
+                        'N' => (string) $this->currentTime(),
+                    ],
+                    ':expires_at' => [
+                        'N' => (string) $this->toTimestamp($seconds),
+                    ],
+                ],
+            ]);
+
+            return true;
+        } catch (DynamoDbException $e) {
+            if (str_contains($e->getMessage(), 'ConditionalCheckFailed')) {
+                return false;
+            }
+
+            throw $e;
+        }
     }
 
     /**
